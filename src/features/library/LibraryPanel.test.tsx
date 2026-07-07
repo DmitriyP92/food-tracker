@@ -69,6 +69,23 @@ describe('LibraryPanel', () => {
     expect(products[0]!.name).toBe('Творог 5%')
   })
 
+  it('фильтрует список по поиску без учёта регистра (US-5)', async () => {
+    await addProduct({ name: 'Творог', defaultWeight: 150, unit: 'г' })
+    await addProduct({ name: 'Сыр', defaultWeight: 20, unit: 'г' })
+    const user = userEvent.setup()
+    renderPanel()
+
+    await screen.findByText('Творог')
+    await user.type(screen.getByLabelText('Поиск по библиотеке'), 'сыр')
+
+    expect(screen.getByText('Сыр')).toBeInTheDocument()
+    expect(screen.queryByText('Творог')).not.toBeInTheDocument()
+
+    await user.clear(screen.getByLabelText('Поиск по библиотеке'))
+    await user.type(screen.getByLabelText('Поиск по библиотеке'), 'банан')
+    await screen.findByText('Ничего не найдено.')
+  })
+
   it('удаляет продукт (US-3)', async () => {
     await addProduct({ name: 'Кефир', defaultWeight: 250, unit: 'мл' })
     const user = userEvent.setup()

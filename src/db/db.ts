@@ -110,6 +110,45 @@ export async function listCategories(): Promise<Category[]> {
   return db.categories.orderBy('order').toArray()
 }
 
+/** Добавляет пользовательскую категорию в конец списка (US-13). */
+export async function addCategory(name: string): Promise<Category> {
+  const trimmed = name.trim()
+  if (!trimmed) throw new Error('Название категории не может быть пустым')
+  return db.transaction('rw', db.categories, async () => {
+    const existing = await db.categories.toArray()
+    if (existing.some((c) => c.name.toLowerCase() === trimmed.toLowerCase()))
+      throw new Error('Такая категория уже есть')
+    const category: Category = {
+      id: crypto.randomUUID(),
+      name: trimmed,
+      isDefault: false,
+      order: Math.max(0, ...existing.map((c) => c.order)) + 1,
+    }
+    await db.categories.add(category)
+    return category
+  })
+}
+
+/**
+ * Удаляет пользовательскую категорию (US-13). Дефолтные удалять нельзя.
+ * Категория, на которую ссылаются дневник или шаблоны, не удаляется —
+ * иначе прошлые дни осиротеют (snapshot-принцип, US-20/23).
+ */
+export async function deleteCategory(id: string): Promise<void> {
+  await db.transaction('rw', [db.categories, db.days, db.templates], async () => {
+    const category = await db.categories.get(id)
+    if (!category) throw new Error('Категория не найдена')
+    if (category.isDefault) throw new Error('Нельзя удалить категорию по умолчанию')
+    const usedInDays = await db.days
+      .filter((day) => day.meals.some((meal) => meal.categoryId === id))
+      .count()
+    if (usedInDays > 0) throw new Error('Категория используется в дневнике')
+    const usedInTemplates = await db.templates.where('categoryId').equals(id).count()
+    if (usedInTemplates > 0) throw new Error('Категория используется в шаблонах')
+    await db.categories.delete(id)
+  })
+}
+
 // ───────────────────────── Дни и приёмы пищи ─────────────────────────
 
 export async function getDay(date: string): Promise<Day> {

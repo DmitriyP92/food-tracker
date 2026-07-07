@@ -1,7 +1,15 @@
 import { useState } from 'react'
 import { useLiveQuery } from 'dexie-react-hooks'
 import { useDroppable } from '@dnd-kit/core'
-import { copyDay, getDay, listCategories, removeMealItem, updateMealItem } from '../../db/db'
+import {
+  addCategory,
+  copyDay,
+  deleteCategory,
+  getDay,
+  listCategories,
+  removeMealItem,
+  updateMealItem,
+} from '../../db/db'
 import type { Category, Meal, MealItem } from '../../types/models'
 import { SaveTemplateButton } from '../templates/SaveTemplateButton'
 import { dayTotal, mealTotal } from './totals'
@@ -53,6 +61,7 @@ export function DayPanel({ date, onAddRequest }: Props) {
           onAddRequest={() => onAddRequest(category)}
         />
       ))}
+      <AddCategoryButton />
       <footer className={styles.dayTotal}>
         <span>Итого за день</span>
         <span className={styles.dayTotalValue}>{dayTotal(day)} г</span>
@@ -73,6 +82,17 @@ function MealSection({
   onAddRequest: () => void
 }) {
   const { setNodeRef, isOver } = useDroppable({ id: category.id, data: { category } })
+  const [deleteError, setDeleteError] = useState<string | null>(null)
+
+  const removeCategory = async () => {
+    if (!window.confirm(`Удалить категорию «${category.name}»?`)) return
+    setDeleteError(null)
+    try {
+      await deleteCategory(category.id)
+    } catch (e) {
+      setDeleteError(e instanceof Error ? e.message : 'Не удалось удалить')
+    }
+  }
 
   return (
     <section
@@ -85,8 +105,19 @@ function MealSection({
         <span className={styles.mealActions}>
           {meal && meal.items.length > 0 && <SaveTemplateButton category={category} meal={meal} />}
           <span className={styles.mealTotal}>{mealTotal(meal)} г</span>
+          {!category.isDefault && (
+            <button
+              type="button"
+              className={styles.removeCategory}
+              aria-label={`Удалить категорию: ${category.name}`}
+              onClick={() => void removeCategory()}
+            >
+              ×
+            </button>
+          )}
         </span>
       </header>
+      {deleteError && <p className={styles.categoryError}>{deleteError}</p>}
       {meal && meal.items.length > 0 ? (
         <ul className={styles.items}>
           {meal.items.map((item, index) => (
@@ -107,6 +138,63 @@ function MealSection({
         ＋ Добавить
       </button>
     </section>
+  )
+}
+
+/** Добавление пользовательской категории (US-13). */
+function AddCategoryButton() {
+  const [open, setOpen] = useState(false)
+  const [name, setName] = useState('')
+  const [error, setError] = useState<string | null>(null)
+
+  const save = async () => {
+    setError(null)
+    try {
+      await addCategory(name)
+      setOpen(false)
+      setName('')
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Не удалось добавить')
+    }
+  }
+
+  if (!open) {
+    return (
+      <button type="button" className={styles.addCategory} onClick={() => setOpen(true)}>
+        ＋ Категория
+      </button>
+    )
+  }
+
+  return (
+    <div className={styles.addCategoryForm}>
+      <input
+        type="text"
+        placeholder="Название категории"
+        aria-label="Название категории"
+        value={name}
+        onChange={(e) => setName(e.target.value)}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter') void save()
+        }}
+        autoFocus
+      />
+      <div className={styles.addCategoryActions}>
+        <button type="button" className={styles.addCategoryPrimary} onClick={() => void save()}>
+          Добавить
+        </button>
+        <button
+          type="button"
+          onClick={() => {
+            setOpen(false)
+            setError(null)
+          }}
+        >
+          Отмена
+        </button>
+      </div>
+      {error && <p className={styles.categoryError}>{error}</p>}
+    </div>
   )
 }
 

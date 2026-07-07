@@ -2,7 +2,14 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { DndContext } from '@dnd-kit/core'
-import { addProduct, addProductToMeal, db, getDay, listCategories } from '../../db/db'
+import {
+  addCategory,
+  addProduct,
+  addProductToMeal,
+  db,
+  getDay,
+  listCategories,
+} from '../../db/db'
 import { DayPanel } from './DayPanel'
 
 const DATE = '2026-06-01'
@@ -69,6 +76,33 @@ describe('DayPanel', () => {
       const day = await getDay(DATE)
       expect(day.meals).toHaveLength(0)
     })
+  })
+
+  it('добавляет пользовательскую категорию (US-13)', async () => {
+    const user = userEvent.setup()
+    renderPanel()
+
+    await user.click(await screen.findByRole('button', { name: '＋ Категория' }))
+    await user.type(screen.getByLabelText('Название категории'), 'Перекус')
+    await user.click(screen.getByRole('button', { name: 'Добавить' }))
+
+    await screen.findByRole('heading', { name: 'Перекус' })
+    expect(await listCategories()).toHaveLength(4)
+  })
+
+  it('удаляет пустую пользовательскую категорию, дефолтные без крестика (US-13)', async () => {
+    await addCategory('Перекус')
+    vi.spyOn(window, 'confirm').mockReturnValue(true)
+    const user = userEvent.setup()
+    renderPanel()
+
+    await screen.findByRole('heading', { name: 'Перекус' })
+    // у дефолтных категорий кнопки удаления нет
+    expect(screen.queryByRole('button', { name: 'Удалить категорию: Завтрак' })).toBeNull()
+
+    await user.click(screen.getByRole('button', { name: 'Удалить категорию: Перекус' }))
+
+    await waitFor(async () => expect(await listCategories()).toHaveLength(3))
   })
 
   it('кнопка «＋ Добавить» запрашивает шторку с категорией (US-6)', async () => {

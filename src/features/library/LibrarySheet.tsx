@@ -1,6 +1,8 @@
+import { useState } from 'react'
 import { useLiveQuery } from 'dexie-react-hooks'
 import { addProductToMeal, listProducts } from '../../db/db'
 import type { Category, Product } from '../../types/models'
+import { filterProducts } from './search'
 import styles from './LibrarySheet.module.css'
 
 interface Props {
@@ -16,6 +18,9 @@ interface Props {
  */
 export function LibrarySheet({ date, category, onClose }: Props) {
   const products = useLiveQuery(listProducts, []) ?? []
+  const [query, setQuery] = useState('')
+
+  const visible = filterProducts(products, query)
 
   const add = (product: Product) => {
     void addProductToMeal(date, category.id, product)
@@ -35,11 +40,23 @@ export function LibrarySheet({ date, category, onClose }: Props) {
             Готово
           </button>
         </header>
+        {products.length > 0 && (
+          <input
+            type="search"
+            className={styles.search}
+            placeholder="Поиск…"
+            aria-label="Поиск в шторке библиотеки"
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+          />
+        )}
         {products.length === 0 ? (
           <p className={styles.empty}>Библиотека пуста — сначала добавьте продукт.</p>
+        ) : visible.length === 0 ? (
+          <p className={styles.empty}>Ничего не найдено.</p>
         ) : (
           <ul className={styles.list}>
-            {products.map((product) => (
+            {visible.map((product) => (
               <li key={product.id}>
                 <button type="button" className={styles.product} onClick={() => add(product)}>
                   <span>{product.name}</span>

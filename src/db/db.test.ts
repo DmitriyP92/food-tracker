@@ -1,12 +1,14 @@
 import { beforeEach, describe, expect, it } from 'vitest'
 import {
   MAX_TEMPLATES_PER_CATEGORY,
+  addCategory,
   addProduct,
   addProductToMeal,
   applyTemplate,
   copyDay,
   copyMeal,
   db,
+  deleteCategory,
   deleteProduct,
   exportBackup,
   getDay,
@@ -34,6 +36,43 @@ describe('категории', () => {
     const categories = await listCategories()
     expect(categories.map((c) => c.name)).toEqual(['Завтрак', 'Обед', 'Ужин'])
     expect(categories.every((c) => c.isDefault)).toBe(true)
+  })
+
+  it('добавляет пользовательскую категорию в конец (US-13)', async () => {
+    const snack = await addCategory('Перекус')
+    expect(snack.isDefault).toBe(false)
+    const categories = await listCategories()
+    expect(categories.map((c) => c.name)).toEqual(['Завтрак', 'Обед', 'Ужин', 'Перекус'])
+  })
+
+  it('отклоняет пустое имя и дубликат (без учёта регистра)', async () => {
+    await expect(addCategory('  ')).rejects.toThrow()
+    await addCategory('Перекус')
+    await expect(addCategory('перекус')).rejects.toThrow('уже есть')
+  })
+
+  it('удаляет пользовательскую категорию, но не дефолтную (US-13)', async () => {
+    const snack = await addCategory('Перекус')
+    await deleteCategory(snack.id)
+    expect(await listCategories()).toHaveLength(3)
+
+    const [breakfast] = await listCategories()
+    await expect(deleteCategory(breakfast!.id)).rejects.toThrow('по умолчанию')
+  })
+
+  it('не удаляет категорию, используемую в дневнике или шаблонах', async () => {
+    const snack = await addCategory('Перекус')
+    const product = await addProduct({ name: 'Яблоко', defaultWeight: 150, unit: 'г' })
+    await addProductToMeal(DATE, snack.id, product)
+    await expect(deleteCategory(snack.id)).rejects.toThrow('в дневнике')
+
+    const snack2 = await addCategory('Второй ужин')
+    await saveTemplate({
+      name: 'Вечер',
+      categoryId: snack2.id,
+      items: [{ name: 'Кефир', weight: 250, unit: 'мл' }],
+    })
+    await expect(deleteCategory(snack2.id)).rejects.toThrow('в шаблонах')
   })
 })
 

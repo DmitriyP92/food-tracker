@@ -4,6 +4,7 @@ import { useDraggable } from '@dnd-kit/core'
 import { addProduct, deleteProduct, listProducts, updateProduct } from '../../db/db'
 import type { Product } from '../../types/models'
 import { ProductForm } from './ProductForm'
+import { filterProducts } from './search'
 import styles from './LibraryPanel.module.css'
 
 /**
@@ -14,9 +15,22 @@ export function LibraryPanel() {
   const products = useLiveQuery(listProducts, []) ?? []
   const [adding, setAdding] = useState(false)
   const [editingId, setEditingId] = useState<string | null>(null)
+  const [query, setQuery] = useState('')
+
+  const visible = filterProducts(products, query)
 
   return (
     <div>
+      {products.length > 0 && (
+        <input
+          type="search"
+          className={styles.search}
+          placeholder="Поиск…"
+          aria-label="Поиск по библиотеке"
+          value={query}
+          onChange={(e) => setQuery(e.target.value)}
+        />
+      )}
       {adding ? (
         <ProductForm
           submitLabel="Добавить"
@@ -35,9 +49,12 @@ export function LibraryPanel() {
       {products.length === 0 && !adding && (
         <p className={styles.empty}>Библиотека пуста. Добавьте первый продукт.</p>
       )}
+      {products.length > 0 && visible.length === 0 && (
+        <p className={styles.empty}>Ничего не найдено.</p>
+      )}
 
       <ul className={styles.list}>
-        {products.map((product) =>
+        {visible.map((product) =>
           editingId === product.id ? (
             <li key={product.id}>
               <ProductForm
