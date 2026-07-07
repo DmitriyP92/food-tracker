@@ -19,11 +19,28 @@ export function BackupDialog({ onClose }: Props) {
   const handleExport = async () => {
     try {
       const backup = await exportBackup()
-      const blob = new Blob([JSON.stringify(backup, null, 2)], { type: 'application/json' })
-      const url = URL.createObjectURL(blob)
+      const json = JSON.stringify(backup, null, 2)
+      const file = new File([json], `food-tracker-backup-${todayISO()}.json`, {
+        type: 'application/json',
+      })
+
+      // iOS Safari/PWA не умеет скачивать blob-ссылки — там файл отдаём
+      // через системное меню «Поделиться» (можно сохранить в «Файлы»)
+      if (navigator.canShare?.({ files: [file] })) {
+        try {
+          await navigator.share({ files: [file] })
+          setStatus({ kind: 'ok', text: 'Резервная копия передана в меню «Поделиться».' })
+          return
+        } catch (e) {
+          if (e instanceof DOMException && e.name === 'AbortError') return // пользователь передумал
+          // share не сработал — пробуем обычное скачивание ниже
+        }
+      }
+
+      const url = URL.createObjectURL(new Blob([json], { type: 'application/json' }))
       const link = document.createElement('a')
       link.href = url
-      link.download = `food-tracker-backup-${todayISO()}.json`
+      link.download = file.name
       link.click()
       URL.revokeObjectURL(url)
       setStatus({ kind: 'ok', text: 'Файл резервной копии сохранён.' })

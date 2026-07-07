@@ -26,7 +26,7 @@ function makeFile(content: unknown): File {
 }
 
 describe('BackupDialog', () => {
-  it('экспортирует данные в файл', async () => {
+  it('экспортирует данные в файл (скачивание)', async () => {
     const user = userEvent.setup()
     render(<BackupDialog onClose={() => undefined} />)
 
@@ -34,6 +34,24 @@ describe('BackupDialog', () => {
 
     await screen.findByText('Файл резервной копии сохранён.')
     expect(HTMLAnchorElement.prototype.click).toHaveBeenCalledOnce()
+  })
+
+  it('экспортирует через системный share, если он доступен (iOS)', async () => {
+    const share = vi.fn().mockResolvedValue(undefined)
+    Object.assign(navigator, { canShare: () => true, share })
+    try {
+      const user = userEvent.setup()
+      render(<BackupDialog onClose={() => undefined} />)
+
+      await user.click(screen.getByRole('button', { name: 'Экспорт в файл' }))
+
+      await screen.findByText('Резервная копия передана в меню «Поделиться».')
+      expect(share).toHaveBeenCalledOnce()
+      expect(HTMLAnchorElement.prototype.click).not.toHaveBeenCalled()
+    } finally {
+      // navigator общий на файл тестов — убираем share, чтобы не влиять на соседей
+      Object.assign(navigator, { canShare: undefined, share: undefined })
+    }
   })
 
   it('импортирует резервную копию после подтверждения', async () => {

@@ -2,6 +2,10 @@ import { expect, test } from '@playwright/test'
 
 /** Резервная копия: экспорт в файл и восстановление данных импортом. */
 test('экспорт → удаление данных → импорт восстанавливает', async ({ page }) => {
+  // выключаем Web Share, чтобы экспорт детерминированно шёл через скачивание
+  await page.addInitScript(() => {
+    Object.assign(navigator, { canShare: undefined, share: undefined })
+  })
   await page.goto('./')
 
   // продукт, который поедет в резервную копию
