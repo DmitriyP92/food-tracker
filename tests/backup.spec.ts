@@ -25,14 +25,14 @@ test('экспорт → удаление данных → импорт восс
   const filePath = await download.path()
   expect(download.suggestedFilename()).toMatch(/^food-tracker-backup-.*\.json$/)
 
+  // подтверждаем системные confirm-диалоги (удаление, импорт)
+  page.on('dialog', (d) => void d.accept())
+
   // удалить продукт из библиотеки
   await dialog.getByRole('button', { name: 'Закрыть' }).click()
   await page.getByText('Резервный сыр').click()
   await page.getByRole('button', { name: 'Удалить' }).click()
   await expect(page.getByText('Резервный сыр')).toHaveCount(0)
-
-  // импорт возвращает данные (подтверждаем replace-диалог)
-  page.on('dialog', (d) => void d.accept())
   await page.getByRole('button', { name: 'Резервная копия' }).click()
   await dialog.getByLabel('Файл резервной копии').setInputFiles(filePath)
   await expect(dialog.getByText('Данные восстановлены из резервной копии.')).toBeVisible()

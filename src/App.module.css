@@ -123,6 +123,29 @@
   padding: var(--space-3);
 }
 
+/* низкие экраны (iPhone в ландшафте): ужимаем шапку и отступы,
+   чтобы дневнику осталось больше высоты */
+@media (max-height: 500px) {
+  .header {
+    padding: var(--space-1) var(--space-3);
+  }
+
+  .header .dateNav button,
+  .dateInput,
+  .backupButton {
+    min-height: 36px;
+  }
+
+  .layout {
+    padding: var(--space-2);
+    gap: var(--space-2);
+  }
+
+  .panel {
+    padding: var(--space-3);
+  }
+}
+
 /* iPhone: одна колонка — день сверху, библиотека и шаблоны ниже;
    добавление продуктов — через шторку по кнопке «＋ Добавить» */
 @media (max-width: 767px) {

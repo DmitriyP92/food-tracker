@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { db, getDay, listCategories, listTemplates, saveTemplate } from '../../db/db'
@@ -61,8 +61,9 @@ describe('TemplatesPanel', () => {
     })
   })
 
-  it('удаляет шаблон (US-17)', async () => {
+  it('удаляет шаблон после подтверждения (US-17)', async () => {
     await seedTemplate()
+    vi.spyOn(window, 'confirm').mockReturnValue(true)
     const user = userEvent.setup()
     render(<TemplatesPanel date={DATE} />)
 

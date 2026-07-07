@@ -7,9 +7,31 @@
   align-items: center;
   justify-content: center;
   padding: var(--space-4);
+  animation: fade-in 0.15s ease-out;
+}
+
+@keyframes fade-in {
+  from {
+    opacity: 0;
+  }
+}
+
+@keyframes pop-in {
+  from {
+    transform: scale(0.96);
+    opacity: 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .backdrop,
+  .dialog {
+    animation: none;
+  }
 }
 
 .dialog {
+  animation: pop-in 0.15s ease-out;
   width: min(440px, 100%);
   background: var(--color-surface);
   border: 1px solid var(--color-border);

@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { DndContext } from '@dnd-kit/core'
@@ -106,8 +106,9 @@ describe('LibraryPanel', () => {
     expect(screen.getByText('Сыр')).toBeInTheDocument()
   })
 
-  it('удаляет продукт (US-3)', async () => {
+  it('удаляет продукт после подтверждения (US-3)', async () => {
     await addProduct({ name: 'Кефир', defaultWeight: 250, unit: 'мл' })
+    vi.spyOn(window, 'confirm').mockReturnValue(true)
     const user = userEvent.setup()
     renderPanel()
 
@@ -116,5 +117,19 @@ describe('LibraryPanel', () => {
 
     await waitFor(async () => expect(await listProducts()).toHaveLength(0))
     expect(screen.queryByText('Кефир')).not.toBeInTheDocument()
+    vi.restoreAllMocks()
+  })
+
+  it('не удаляет продукт без подтверждения', async () => {
+    await addProduct({ name: 'Кефир', defaultWeight: 250, unit: 'мл' })
+    vi.spyOn(window, 'confirm').mockReturnValue(false)
+    const user = userEvent.setup()
+    renderPanel()
+
+    await user.click(await screen.findByText('Кефир'))
+    await user.click(screen.getByRole('button', { name: 'Удалить' }))
+
+    await waitFor(async () => expect(await listProducts()).toHaveLength(1))
+    vi.restoreAllMocks()
   })
 })

@@ -104,7 +104,10 @@ function TemplateCard({ template, date }: { template: Template; date: string }) 
             <button
               type="button"
               className={styles.danger}
-              onClick={() => void deleteTemplate(template.id)}
+              onClick={() => {
+                if (window.confirm(`Удалить шаблон «${template.name}»?`))
+                  void deleteTemplate(template.id)
+              }}
             >
               Удалить шаблон
             </button>

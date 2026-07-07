@@ -6,9 +6,31 @@
   display: flex;
   align-items: flex-end;
   justify-content: center;
+  animation: fade-in 0.15s ease-out;
+}
+
+@keyframes fade-in {
+  from {
+    opacity: 0;
+  }
+}
+
+@keyframes slide-up {
+  from {
+    transform: translateY(24px);
+    opacity: 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .backdrop,
+  .sheet {
+    animation: none;
+  }
 }
 
 .sheet {
+  animation: slide-up 0.2s ease-out;
   width: min(560px, 100%);
   max-height: 70dvh;
   display: flex;

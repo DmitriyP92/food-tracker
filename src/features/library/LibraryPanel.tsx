@@ -60,6 +60,10 @@ export function LibraryPanel() {
                 }}
                 onCancel={() => setEditingId(null)}
                 onDelete={async () => {
+                  const ok = window.confirm(
+                    `Удалить «${product.name}» из библиотеки? Записи дневника не изменятся.`,
+                  )
+                  if (!ok) return
                   await deleteProduct(product.id)
                   setEditingId(null)
                 }}
