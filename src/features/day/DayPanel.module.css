@@ -107,6 +107,7 @@
   color: var(--color-accent);
   font-size: var(--font-size-s);
   font-variant-numeric: tabular-nums;
+  white-space: nowrap; /* «200 г» — всегда одной строкой */
 }
 
 .items {
