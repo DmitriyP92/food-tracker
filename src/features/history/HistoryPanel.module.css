@@ -1,0 +1,136 @@
+.history {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.nav {
+  display: flex;
+  gap: var(--space-2);
+}
+
+.nav button {
+  min-width: 44px;
+  min-height: 44px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-s);
+  background: var(--color-surface-2);
+  cursor: pointer;
+}
+
+.nav input {
+  flex: 1;
+  min-width: 0;
+  min-height: 44px;
+  padding: 0 var(--space-2);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-s);
+  background: var(--color-surface-2);
+  color: var(--color-text);
+  font: inherit;
+}
+
+.title {
+  margin: 0;
+  font-size: var(--font-size-s);
+  color: var(--color-text-muted);
+  font-weight: 600;
+}
+
+.empty {
+  margin: 0;
+  color: var(--color-text-muted);
+  font-size: var(--font-size-s);
+}
+
+.copyDay {
+  min-height: 44px;
+  border: 1px dashed var(--color-border);
+  border-radius: var(--radius-s);
+  background: transparent;
+  color: var(--color-accent);
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.copyDay:hover {
+  border-color: var(--color-accent);
+}
+
+.meal {
+  padding: var(--space-2) var(--space-3);
+  background: var(--color-surface-2);
+  border-radius: var(--radius-s);
+}
+
+.mealHeader {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+}
+
+.mealTitle {
+  margin: 0;
+  font-size: var(--font-size-s);
+}
+
+.mealTotal {
+  color: var(--color-accent);
+  font-size: var(--font-size-s);
+  font-variant-numeric: tabular-nums;
+}
+
+.items {
+  margin: var(--space-1) 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.item {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-1) 0;
+  border-top: 1px solid var(--color-border);
+  /* длинное нажатие тянет, свайп скроллит */
+  touch-action: manipulation;
+}
+
+.item.dragging {
+  opacity: 0.4;
+}
+
+.itemName {
+  flex: 1;
+  overflow-wrap: anywhere;
+  font-size: var(--font-size-s);
+}
+
+.itemWeight {
+  color: var(--color-text-muted);
+  font-size: var(--font-size-s);
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+
+.itemCopy {
+  width: 36px;
+  min-height: 36px;
+  border: none;
+  border-radius: var(--radius-s);
+  background: transparent;
+  color: var(--color-accent);
+  font-size: var(--font-size-m);
+  line-height: 1;
+  cursor: pointer;
+}
+
+.itemCopy:hover {
+  background: var(--color-surface);
+}
+
+.error {
+  margin: 0;
+  color: var(--color-danger);
+  font-size: var(--font-size-s);
+}

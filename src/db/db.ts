@@ -197,6 +197,33 @@ export async function removeMealItem(
   })
 }
 
+/**
+ * Копирует все приёмы пищи одного дня в другой (US-26: «Скопировать вчера»
+ * и копирование из произвольной даты). Копии независимы (snapshot);
+ * день-источник не меняется, существующие записи дня-назначения сохраняются.
+ */
+export async function copyDay(fromDate: string, toDate: string): Promise<Day> {
+  if (fromDate === toDate) throw new Error('Нельзя скопировать день сам в себя')
+  return db.transaction('rw', db.days, async () => {
+    const source = await getDay(fromDate)
+    if (source.meals.every((meal) => meal.items.length === 0))
+      throw new Error('День-источник пуст')
+    const target = await getDay(toDate)
+    for (const meal of source.meals) {
+      let targetMeal: Meal | undefined = target.meals.find(
+        (m) => m.categoryId === meal.categoryId,
+      )
+      if (!targetMeal) {
+        targetMeal = { categoryId: meal.categoryId, items: [] }
+        target.meals.push(targetMeal)
+      }
+      targetMeal.items.push(...meal.items.map((item) => ({ ...item })))
+    }
+    await db.days.put(target)
+    return target
+  })
+}
+
 // ───────────────────────── Шаблоны ─────────────────────────
 
 export async function listTemplates(categoryId?: string): Promise<Template[]> {

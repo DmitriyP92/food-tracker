@@ -1,10 +1,11 @@
+import { useState } from 'react'
 import { useLiveQuery } from 'dexie-react-hooks'
 import { useDroppable } from '@dnd-kit/core'
-import { getDay, listCategories, removeMealItem, updateMealItem } from '../../db/db'
+import { copyDay, getDay, listCategories, removeMealItem, updateMealItem } from '../../db/db'
 import type { Category, Meal, MealItem } from '../../types/models'
 import { SaveTemplateButton } from '../templates/SaveTemplateButton'
 import { dayTotal, mealTotal } from './totals'
-import { formatDayTitle } from './date'
+import { formatDayTitle, shiftISODate } from './date'
 import styles from './DayPanel.module.css'
 
 interface Props {
@@ -19,10 +20,30 @@ interface Props {
 export function DayPanel({ date, onAddRequest }: Props) {
   const categories = useLiveQuery(listCategories, []) ?? []
   const day = useLiveQuery(() => getDay(date), [date])
+  const [copyError, setCopyError] = useState<string | null>(null)
+
+  const isEmpty = day !== undefined && dayTotal(day) === 0
+
+  const copyYesterday = async () => {
+    setCopyError(null)
+    try {
+      await copyDay(shiftISODate(date, -1), date)
+    } catch (e) {
+      setCopyError(e instanceof Error ? e.message : 'Не удалось скопировать')
+    }
+  }
 
   return (
     <div className={styles.day}>
-      <h2 className={styles.title}>{formatDayTitle(date)}</h2>
+      <header className={styles.dayHeader}>
+        <h2 className={styles.title}>{formatDayTitle(date)}</h2>
+        {isEmpty && (
+          <button type="button" className={styles.copyYesterday} onClick={() => void copyYesterday()}>
+            Скопировать вчера
+          </button>
+        )}
+      </header>
+      {copyError && <p className={styles.copyError}>{copyError}</p>}
       {categories.map((category) => (
         <MealSection
           key={category.id}

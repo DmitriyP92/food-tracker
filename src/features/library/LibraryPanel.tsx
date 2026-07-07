@@ -91,12 +91,12 @@ function DraggableProductCard({ product, onClick }: { product: Product; onClick:
 }
 
 /** Карточка для DragOverlay — визуальный «призрак» под пальцем/курсором. */
-export function ProductCardGhost({ product }: { product: Product }) {
+export function CardGhost({ name, weight, unit }: { name: string; weight: number; unit: string }) {
   return (
     <div className={`${styles.card} ${styles.ghost}`}>
-      <span className={styles.cardName}>{product.name}</span>
+      <span className={styles.cardName}>{name}</span>
       <span className={styles.cardWeight}>
-        {product.defaultWeight} {product.unit}
+        {weight} {unit}
       </span>
     </div>
   )

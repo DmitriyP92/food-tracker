@@ -60,6 +60,47 @@
   font-weight: 600;
 }
 
+.dateInput {
+  min-height: 44px;
+  padding: 0 var(--space-2);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-s);
+  background: var(--color-surface);
+  color: var(--color-text);
+  font: inherit;
+}
+
+/* на узком экране календарь и «Сегодня» ужимаются */
+@media (max-width: 480px) {
+  .dateInput {
+    max-width: 130px;
+  }
+}
+
+.tabs {
+  display: flex;
+  gap: var(--space-2);
+  margin-bottom: var(--space-3);
+}
+
+.tab,
+.tabActive {
+  flex: 1;
+  min-height: 40px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-s);
+  background: transparent;
+  color: var(--color-text-muted);
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.tabActive {
+  background: var(--color-surface-2);
+  color: var(--color-accent);
+  border-color: var(--color-accent);
+}
+
 /* iPad и шире: три панели (библиотека / день / шаблоны) */
 .layout {
   flex: 1;

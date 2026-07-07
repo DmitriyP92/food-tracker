@@ -4,6 +4,7 @@ import {
   addProduct,
   addProductToMeal,
   applyTemplate,
+  copyDay,
   db,
   deleteProduct,
   exportBackup,
@@ -115,6 +116,40 @@ describe('день и приёмы пищи', () => {
 
     const other = await getDay('2026-06-02')
     expect(other.meals).toHaveLength(0)
+  })
+})
+
+describe('копирование дня (US-26)', () => {
+  it('копирует все приёмы в другой день, источник не меняется', async () => {
+    const [breakfast, lunch] = await listCategories()
+    const oats = await addProduct({ name: 'Овсянка', defaultWeight: 60, unit: 'г' })
+    const soup = await addProduct({ name: 'Суп', defaultWeight: 350, unit: 'г' })
+    await addProductToMeal(DATE, breakfast!.id, oats)
+    await addProductToMeal(DATE, lunch!.id, soup)
+
+    const target = await copyDay(DATE, '2026-06-02')
+    expect(target.meals).toHaveLength(2)
+
+    // копия независима: правка копии не меняет источник
+    await updateMealItem('2026-06-02', breakfast!.id, 0, { weight: 90 })
+    const source = await getDay(DATE)
+    expect(source.meals[0]!.items[0]!.weight).toBe(60)
+  })
+
+  it('дополняет, а не затирает записи дня-назначения', async () => {
+    const [breakfast] = await listCategories()
+    const oats = await addProduct({ name: 'Овсянка', defaultWeight: 60, unit: 'г' })
+    const egg = await addProduct({ name: 'Яйцо', defaultWeight: 60, unit: 'г' })
+    await addProductToMeal(DATE, breakfast!.id, oats)
+    await addProductToMeal('2026-06-02', breakfast!.id, egg)
+
+    const target = await copyDay(DATE, '2026-06-02')
+    expect(target.meals[0]!.items.map((i) => i.name)).toEqual(['Яйцо', 'Овсянка'])
+  })
+
+  it('отклоняет пустой источник и копирование в себя', async () => {
+    await expect(copyDay('2026-06-03', '2026-06-04')).rejects.toThrow('пуст')
+    await expect(copyDay(DATE, DATE)).rejects.toThrow()
   })
 })
 
