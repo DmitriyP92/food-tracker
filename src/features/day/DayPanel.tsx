@@ -1,6 +1,8 @@
 import { useState } from 'react'
 import { useLiveQuery } from 'dexie-react-hooks'
 import { useDroppable } from '@dnd-kit/core'
+import { SortableContext, useSortable, verticalListSortingStrategy } from '@dnd-kit/sortable'
+import { CSS } from '@dnd-kit/utilities'
 import {
   addCategory,
   copyDay,
@@ -52,15 +54,20 @@ export function DayPanel({ date, onAddRequest }: Props) {
         )}
       </header>
       {copyError && <p className={styles.copyError}>{copyError}</p>}
-      {categories.map((category) => (
-        <MealSection
-          key={category.id}
-          date={date}
-          category={category}
-          meal={day?.meals.find((m) => m.categoryId === category.id)}
-          onAddRequest={() => onAddRequest(category)}
-        />
-      ))}
+      <SortableContext
+        items={categories.map((c) => `cat:${c.id}`)}
+        strategy={verticalListSortingStrategy}
+      >
+        {categories.map((category) => (
+          <MealSection
+            key={category.id}
+            date={date}
+            category={category}
+            meal={day?.meals.find((m) => m.categoryId === category.id)}
+            onAddRequest={() => onAddRequest(category)}
+          />
+        ))}
+      </SortableContext>
       <AddCategoryButton />
       <footer className={styles.dayTotal}>
         <span>Итого за день</span>
@@ -81,7 +88,16 @@ function MealSection({
   meal: Meal | undefined
   onAddRequest: () => void
 }) {
-  const { setNodeRef, isOver } = useDroppable({ id: category.id, data: { category } })
+  const { setNodeRef: setDropRef, isOver } = useDroppable({ id: category.id, data: { category } })
+  const {
+    setNodeRef: setSortRef,
+    setActivatorNodeRef,
+    transform,
+    transition,
+    isDragging,
+    listeners,
+    attributes,
+  } = useSortable({ id: `cat:${category.id}`, data: { category, sort: true } })
   const [deleteError, setDeleteError] = useState<string | null>(null)
 
   const removeCategory = async () => {
@@ -96,11 +112,30 @@ function MealSection({
 
   return (
     <section
-      ref={setNodeRef}
-      className={`${styles.meal} ${isOver ? styles.mealOver : ''}`}
+      ref={(node) => {
+        setDropRef(node)
+        setSortRef(node)
+      }}
+      style={{
+        transform: CSS.Transform.toString(transform),
+        transition,
+      }}
+      className={`${styles.meal} ${isOver ? styles.mealOver : ''} ${
+        isDragging ? styles.mealDragging : ''
+      }`}
       aria-label={category.name}
     >
       <header className={styles.mealHeader}>
+        <button
+          type="button"
+          className={styles.dragHandle}
+          aria-label={`Переместить категорию: ${category.name}`}
+          ref={setActivatorNodeRef}
+          {...listeners}
+          {...attributes}
+        >
+          ⠿
+        </button>
         <h3 className={styles.mealTitle}>{category.name}</h3>
         <span className={styles.mealActions}>
           {meal && meal.items.length > 0 && <SaveTemplateButton category={category} meal={meal} />}

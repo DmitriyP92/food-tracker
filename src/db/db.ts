@@ -129,6 +129,19 @@ export async function addCategory(name: string): Promise<Category> {
   })
 }
 
+/** Сохраняет порядок категорий: order = позиция в переданном списке id. */
+export async function setCategoryOrder(orderedIds: string[]): Promise<void> {
+  await db.transaction('rw', db.categories, async () => {
+    const categories = await db.categories.toArray()
+    const valid =
+      orderedIds.length === categories.length &&
+      new Set(orderedIds).size === orderedIds.length &&
+      categories.every((c) => orderedIds.includes(c.id))
+    if (!valid) throw new Error('Неверный порядок категорий')
+    await Promise.all(orderedIds.map((id, index) => db.categories.update(id, { order: index })))
+  })
+}
+
 /**
  * Удаляет пользовательскую категорию (US-13). Дефолтные удалять нельзя.
  * Категория, на которую ссылаются дневник или шаблоны, не удаляется —

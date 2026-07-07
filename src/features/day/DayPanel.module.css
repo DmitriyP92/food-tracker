@@ -60,8 +60,36 @@
 .mealHeader {
   display: flex;
   justify-content: space-between;
-  align-items: baseline;
+  align-items: center;
+  gap: var(--space-2);
   margin-bottom: var(--space-2);
+}
+
+.mealDragging {
+  opacity: 0.5;
+  z-index: 1;
+  position: relative;
+}
+
+.dragHandle {
+  width: 32px;
+  min-height: 32px;
+  border: none;
+  border-radius: var(--radius-s);
+  background: transparent;
+  color: var(--color-text-muted);
+  font-size: var(--font-size-m);
+  line-height: 1;
+  cursor: grab;
+  touch-action: manipulation;
+}
+
+.dragHandle:active {
+  cursor: grabbing;
+}
+
+.mealTitle {
+  flex: 1;
 }
 
 .mealTitle {

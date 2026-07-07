@@ -1,7 +1,17 @@
 import { useState } from 'react'
-import { DndContext, DragOverlay, type DragEndEvent, type DragStartEvent } from '@dnd-kit/core'
+import {
+  DndContext,
+  DragOverlay,
+  closestCenter,
+  rectIntersection,
+  type CollisionDetection,
+  type DragEndEvent,
+  type DragStartEvent,
+} from '@dnd-kit/core'
+import { arrayMove } from '@dnd-kit/sortable'
+import { useLiveQuery } from 'dexie-react-hooks'
 import type { Category, MealItem, Product } from './types/models'
-import { addItemToMeal, addProductToMeal } from './db/db'
+import { addItemToMeal, addProductToMeal, listCategories, setCategoryOrder } from './db/db'
 import { useAppSensors } from './features/dnd/sensors'
 import { shiftISODate, todayISO } from './features/day/date'
 import { DayPanel } from './features/day/DayPanel'
@@ -12,7 +22,20 @@ import { HistoryPanel } from './features/history/HistoryPanel'
 import { BackupDialog } from './features/backup/BackupDialog'
 import styles from './App.module.css'
 
-type Dragged = { name: string; weight: number; unit: string }
+type Dragged = { name: string; weight?: number; unit?: string }
+
+/**
+ * Перетаскивания двух видов не мешают друг другу: сортировка категорий
+ * (id с префиксом cat:) видит только категории, продукты — только приёмы.
+ */
+const collisionDetection: CollisionDetection = (args) => {
+  const isCategorySort = String(args.active.id).startsWith('cat:')
+  const droppableContainers = args.droppableContainers.filter(
+    (container) => String(container.id).startsWith('cat:') === isCategorySort,
+  )
+  const detect = isCategorySort ? closestCenter : rectIntersection
+  return detect({ ...args, droppableContainers })
+}
 
 function App() {
   const [date, setDate] = useState(todayISO)
@@ -20,6 +43,7 @@ function App() {
   const [backupOpen, setBackupOpen] = useState(false)
   const [rightTab, setRightTab] = useState<'templates' | 'history'>('templates')
   const [dragged, setDragged] = useState<Dragged | null>(null)
+  const categories = useLiveQuery(listCategories, []) ?? []
 
   const sensors = useAppSensors()
 
@@ -27,7 +51,8 @@ function App() {
     const data = event.active.data.current
     const product = data?.product as Product | undefined
     const item = data?.item as MealItem | undefined
-    if (product)
+    if (data?.sort) setDragged({ name: (data.category as Category).name })
+    else if (product)
       setDragged({ name: product.name, weight: product.defaultWeight, unit: product.unit })
     else if (item) setDragged({ name: item.name, weight: item.weight, unit: item.unit })
     else setDragged(null)
@@ -35,9 +60,29 @@ function App() {
 
   const handleDragEnd = (event: DragEndEvent) => {
     setDragged(null)
-    const category = event.over?.data.current?.category as Category | undefined
+    const { active, over } = event
+    if (!over) return
+
+    // сортировка категорий (id вида cat:<uuid>)
+    if (String(active.id).startsWith('cat:')) {
+      if (active.id === over.id) return
+      const ids = categories.map((c) => `cat:${c.id}`)
+      const from = ids.indexOf(String(active.id))
+      const to = ids.indexOf(String(over.id))
+      if (from < 0 || to < 0) return
+      void setCategoryOrder(
+        arrayMove(
+          categories.map((c) => c.id),
+          from,
+          to,
+        ),
+      )
+      return
+    }
+
+    const category = over.data.current?.category as Category | undefined
     if (!category) return
-    const data = event.active.data.current
+    const data = active.data.current
     const product = data?.product as Product | undefined
     const item = data?.item as MealItem | undefined
     // Дата назначения = открытый день (US-7, US-25); всё копируется как snapshot
@@ -48,7 +93,12 @@ function App() {
   const isToday = date === todayISO()
 
   return (
-    <DndContext sensors={sensors} onDragStart={handleDragStart} onDragEnd={handleDragEnd}>
+    <DndContext
+      sensors={sensors}
+      collisionDetection={collisionDetection}
+      onDragStart={handleDragStart}
+      onDragEnd={handleDragEnd}
+    >
       <div className={styles.app}>
         <header className={styles.header}>
           <h1 className={styles.title}>Дневник питания</h1>
@@ -147,7 +197,14 @@ function App() {
           />
         )}
 
-        <DragOverlay>{dragged && <CardGhost {...dragged} />}</DragOverlay>
+        <DragOverlay>
+          {dragged &&
+            (dragged.weight !== undefined && dragged.unit !== undefined ? (
+              <CardGhost name={dragged.name} weight={dragged.weight} unit={dragged.unit} />
+            ) : (
+              <div className={styles.categoryGhost}>{dragged.name}</div>
+            ))}
+        </DragOverlay>
       </div>
     </DndContext>
   )

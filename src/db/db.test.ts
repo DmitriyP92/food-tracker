@@ -19,6 +19,7 @@ import {
   listTemplates,
   removeMealItem,
   saveTemplate,
+  setCategoryOrder,
   updateMealItem,
   updateProduct,
   updateTemplate,
@@ -58,6 +59,23 @@ describe('категории', () => {
 
     const [breakfast] = await listCategories()
     await expect(deleteCategory(breakfast!.id)).rejects.toThrow('по умолчанию')
+  })
+
+  it('меняет порядок категорий (вставить «Второй завтрак» после Завтрака)', async () => {
+    const second = await addCategory('Второй завтрак')
+    const [breakfast, lunch, dinner] = await listCategories()
+    await setCategoryOrder([breakfast!.id, second.id, lunch!.id, dinner!.id])
+
+    const reordered = await listCategories()
+    expect(reordered.map((c) => c.name)).toEqual(['Завтрак', 'Второй завтрак', 'Обед', 'Ужин'])
+  })
+
+  it('отклоняет неполный или дублирующийся порядок', async () => {
+    const [breakfast, lunch] = await listCategories()
+    await expect(setCategoryOrder([breakfast!.id, lunch!.id])).rejects.toThrow()
+    await expect(
+      setCategoryOrder([breakfast!.id, breakfast!.id, lunch!.id]),
+    ).rejects.toThrow()
   })
 
   it('не удаляет категорию, используемую в дневнике или шаблонах', async () => {

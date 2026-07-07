@@ -24,6 +24,36 @@ test('поиск в библиотеке фильтрует по части на
   await expect(page.getByText('Творог нежирный')).toBeVisible()
 })
 
+test('перетаскивание категории: «Второй завтрак» встаёт после Завтрака', async ({ page }) => {
+  await page.goto('./')
+
+  await page.getByRole('button', { name: '＋ Категория' }).click()
+  await page.getByLabel('Название категории').fill('Второй завтрак')
+  await page.getByRole('button', { name: 'Добавить', exact: true }).click()
+
+  const dayPanel = page.getByRole('region', { name: 'Дневник дня' })
+  await expect(dayPanel.locator('h3')).toHaveText(['Завтрак', 'Обед', 'Ужин', 'Второй завтрак'])
+
+  // тащим за ручку вверх, на позицию сразу под Завтраком
+  const handle = page.getByRole('button', { name: 'Переместить категорию: Второй завтрак' })
+  const target = dayPanel.getByRole('region', { name: 'Обед', exact: true })
+  const handleBox = (await handle.boundingBox())!
+  const targetBox = (await target.boundingBox())!
+
+  await page.mouse.move(handleBox.x + handleBox.width / 2, handleBox.y + handleBox.height / 2)
+  await page.mouse.down()
+  await page.mouse.move(targetBox.x + targetBox.width / 2, targetBox.y + targetBox.height / 2, {
+    steps: 15,
+  })
+  await page.mouse.up()
+
+  await expect(dayPanel.locator('h3')).toHaveText(['Завтрак', 'Второй завтрак', 'Обед', 'Ужин'])
+
+  // порядок сохранился после перезагрузки
+  await page.reload()
+  await expect(dayPanel.locator('h3')).toHaveText(['Завтрак', 'Второй завтрак', 'Обед', 'Ужин'])
+})
+
 test('пользовательская категория: добавить, наполнить, удалить', async ({ page }) => {
   await page.goto('./')
 
