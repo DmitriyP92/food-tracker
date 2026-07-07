@@ -28,3 +28,6 @@ blob-report
 *.njsproj
 *.sln
 *.sw?
+
+# Локальные настройки Claude Code
+.claude/settings.local.json
