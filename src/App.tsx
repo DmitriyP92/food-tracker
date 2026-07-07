@@ -8,11 +8,13 @@ import { DayPanel } from './features/day/DayPanel'
 import { LibraryPanel, ProductCardGhost } from './features/library/LibraryPanel'
 import { LibrarySheet } from './features/library/LibrarySheet'
 import { TemplatesPanel } from './features/templates/TemplatesPanel'
+import { BackupDialog } from './features/backup/BackupDialog'
 import styles from './App.module.css'
 
 function App() {
   const [date, setDate] = useState(todayISO)
   const [sheetCategory, setSheetCategory] = useState<Category | null>(null)
+  const [backupOpen, setBackupOpen] = useState(false)
   const [draggedProduct, setDraggedProduct] = useState<Product | null>(null)
 
   const sensors = useAppSensors()
@@ -39,6 +41,15 @@ function App() {
       <div className={styles.app}>
         <header className={styles.header}>
           <h1 className={styles.title}>Дневник питания</h1>
+          <button
+            type="button"
+            className={styles.backupButton}
+            aria-label="Резервная копия"
+            title="Резервная копия"
+            onClick={() => setBackupOpen(true)}
+          >
+            ⛃
+          </button>
           <nav className={styles.dateNav} aria-label="Навигация по дням">
             <button
               type="button"
@@ -80,6 +91,8 @@ function App() {
             <TemplatesPanel date={date} />
           </section>
         </main>
+
+        {backupOpen && <BackupDialog onClose={() => setBackupOpen(false)} />}
 
         {sheetCategory && (
           <LibrarySheet

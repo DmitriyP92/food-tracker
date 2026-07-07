@@ -19,6 +19,23 @@
   font-weight: 600;
 }
 
+.backupButton {
+  min-width: 44px;
+  min-height: 44px;
+  margin-left: auto;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-s);
+  background: var(--color-surface);
+  color: var(--color-text-muted);
+  font-size: var(--font-size-l);
+  line-height: 1;
+  cursor: pointer;
+}
+
+.backupButton:hover {
+  color: var(--color-accent);
+}
+
 .dateNav {
   display: flex;
   gap: var(--space-2);
