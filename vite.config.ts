@@ -4,6 +4,8 @@ import react from '@vitejs/plugin-react'
 import { VitePWA } from 'vite-plugin-pwa'
 
 export default defineConfig({
+  // Проект живёт на GitHub Pages по пути /food-tracker/
+  base: '/food-tracker/',
   plugins: [
     react(),
     VitePWA({

@@ -9,7 +9,7 @@ export default defineConfig({
   testDir: 'tests',
   timeout: 30_000,
   use: {
-    baseURL: 'http://localhost:4173',
+    baseURL: 'http://localhost:4173/food-tracker/',
   },
   webServer: {
     command: 'npm run build && npm run preview -- --port 4173 --strictPort',
