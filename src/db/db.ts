@@ -224,6 +224,29 @@ export async function copyDay(fromDate: string, toDate: string): Promise<Day> {
   })
 }
 
+/** Копирует один приём пищи в тот же приём другого дня (US-26). */
+export async function copyMeal(
+  fromDate: string,
+  toDate: string,
+  categoryId: string,
+): Promise<Day> {
+  if (fromDate === toDate) throw new Error('Нельзя скопировать день сам в себя')
+  return db.transaction('rw', db.days, async () => {
+    const source = await getDay(fromDate)
+    const sourceMeal = source.meals.find((m) => m.categoryId === categoryId)
+    if (!sourceMeal || sourceMeal.items.length === 0) throw new Error('Приём пищи пуст')
+    const target = await getDay(toDate)
+    let targetMeal: Meal | undefined = target.meals.find((m) => m.categoryId === categoryId)
+    if (!targetMeal) {
+      targetMeal = { categoryId, items: [] }
+      target.meals.push(targetMeal)
+    }
+    targetMeal.items.push(...sourceMeal.items.map((item) => ({ ...item })))
+    await db.days.put(target)
+    return target
+  })
+}
+
 // ───────────────────────── Шаблоны ─────────────────────────
 
 export async function listTemplates(categoryId?: string): Promise<Template[]> {

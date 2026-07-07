@@ -78,19 +78,20 @@ function App() {
             />
             <button
               type="button"
-              className={styles.todayButton}
-              disabled={isToday}
-              onClick={() => setDate(todayISO())}
-            >
-              Сегодня
-            </button>
-            <button
-              type="button"
               aria-label="Следующий день"
               onClick={() => setDate((d) => shiftISODate(d, 1))}
             >
               ›
             </button>
+            {!isToday && (
+              <button
+                type="button"
+                className={styles.todayButton}
+                onClick={() => setDate(todayISO())}
+              >
+                Сегодня
+              </button>
+            )}
           </nav>
         </header>
 

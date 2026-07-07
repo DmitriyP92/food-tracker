@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { useLiveQuery } from 'dexie-react-hooks'
 import { useDraggable } from '@dnd-kit/core'
-import { addItemToMeal, copyDay, getDay, listCategories } from '../../db/db'
+import { addItemToMeal, copyDay, copyMeal, getDay, listCategories } from '../../db/db'
 import type { MealItem } from '../../types/models'
 import { formatDayTitle, shiftISODate, todayISO } from '../day/date'
 import { mealTotal } from '../day/totals'
@@ -30,6 +30,15 @@ export function HistoryPanel({ openDate }: Props) {
     setStatus(null)
     try {
       await copyDay(histDate, openDate)
+    } catch (e) {
+      setStatus(e instanceof Error ? e.message : 'Не удалось скопировать')
+    }
+  }
+
+  const copyOneMeal = async (categoryId: string) => {
+    setStatus(null)
+    try {
+      await copyMeal(histDate, openDate, categoryId)
     } catch (e) {
       setStatus(e instanceof Error ? e.message : 'Не удалось скопировать')
     }
@@ -67,7 +76,7 @@ export function HistoryPanel({ openDate }: Props) {
       ) : (
         <>
           <button type="button" className={styles.copyDay} onClick={() => void copyWholeDay()}>
-            Скопировать день в открытый
+            Копировать в текущий день
           </button>
           {categories.map((category) => {
             const meal = day?.meals.find((m) => m.categoryId === category.id)
@@ -78,6 +87,14 @@ export function HistoryPanel({ openDate }: Props) {
                   <h4 className={styles.mealTitle}>{category.name}</h4>
                   <span className={styles.mealTotal}>{mealTotal(meal)} г</span>
                 </header>
+                <button
+                  type="button"
+                  className={styles.copyMeal}
+                  aria-label={`Копировать приём в текущий день: ${category.name}`}
+                  onClick={() => void copyOneMeal(category.id)}
+                >
+                  Копировать в текущий день
+                </button>
                 <ul className={styles.items}>
                   {meal.items.map((item, index) => (
                     <HistoryItem

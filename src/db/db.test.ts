@@ -5,6 +5,7 @@ import {
   addProductToMeal,
   applyTemplate,
   copyDay,
+  copyMeal,
   db,
   deleteProduct,
   exportBackup,
@@ -150,6 +151,28 @@ describe('копирование дня (US-26)', () => {
   it('отклоняет пустой источник и копирование в себя', async () => {
     await expect(copyDay('2026-06-03', '2026-06-04')).rejects.toThrow('пуст')
     await expect(copyDay(DATE, DATE)).rejects.toThrow()
+  })
+
+  it('копирует один приём пищи, не трогая остальные (US-26)', async () => {
+    const [breakfast, lunch] = await listCategories()
+    const oats = await addProduct({ name: 'Овсянка', defaultWeight: 60, unit: 'г' })
+    const soup = await addProduct({ name: 'Суп', defaultWeight: 350, unit: 'г' })
+    await addProductToMeal(DATE, breakfast!.id, oats)
+    await addProductToMeal(DATE, lunch!.id, soup)
+
+    const target = await copyMeal(DATE, '2026-06-02', breakfast!.id)
+    expect(target.meals).toHaveLength(1)
+    expect(target.meals[0]!.items[0]!.name).toBe('Овсянка')
+
+    // копия независима, источник не изменился
+    await updateMealItem('2026-06-02', breakfast!.id, 0, { weight: 90 })
+    const source = await getDay(DATE)
+    expect(source.meals[0]!.items[0]!.weight).toBe(60)
+  })
+
+  it('отклоняет копирование пустого приёма', async () => {
+    const [breakfast] = await listCategories()
+    await expect(copyMeal(DATE, '2026-06-02', breakfast!.id)).rejects.toThrow('пуст')
   })
 })
 

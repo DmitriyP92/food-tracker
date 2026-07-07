@@ -10,24 +10,29 @@
 }
 
 .nav button {
-  min-width: 44px;
-  min-height: 44px;
+  min-width: 36px;
+  min-height: 36px;
   border: 1px solid var(--color-border);
   border-radius: var(--radius-s);
   background: var(--color-surface-2);
   cursor: pointer;
+  flex-shrink: 0;
 }
 
 .nav input {
-  flex: 1;
+  /* width: 0 + flex — иначе date-инпут держит свою ширину и распирает панель */
+  flex: 1 1 0;
+  width: 0;
   min-width: 0;
-  min-height: 44px;
-  padding: 0 var(--space-2);
+  min-height: 36px;
+  padding: 0 var(--space-1);
   border: 1px solid var(--color-border);
   border-radius: var(--radius-s);
   background: var(--color-surface-2);
   color: var(--color-text);
   font: inherit;
+  font-size: var(--font-size-s);
+  text-align: center;
 }
 
 .title {
@@ -50,11 +55,28 @@
   background: transparent;
   color: var(--color-accent);
   font-weight: 600;
+  font-size: var(--font-size-s);
   cursor: pointer;
 }
 
 .copyDay:hover {
   border-color: var(--color-accent);
+}
+
+.copyMeal {
+  width: 100%;
+  min-height: 32px;
+  margin-top: var(--space-1);
+  border: none;
+  border-radius: var(--radius-s);
+  background: transparent;
+  color: var(--color-accent);
+  font-size: var(--font-size-s);
+  cursor: pointer;
+}
+
+.copyMeal:hover {
+  background: var(--color-surface);
 }
 
 .meal {

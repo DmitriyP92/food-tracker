@@ -66,11 +66,27 @@ describe('HistoryPanel', () => {
     const user = userEvent.setup()
     renderPanel()
 
-    await user.click(await screen.findByRole('button', { name: 'Скопировать день в открытый' }))
+    await user.click(await screen.findByRole('button', { name: 'Копировать в текущий день' }))
 
     await waitFor(async () => {
       const day = await getDay(OPEN)
       expect(day.meals[0]!.items).toHaveLength(1)
+    })
+  })
+
+  it('копирует отдельный приём пищи в открытый день (US-26)', async () => {
+    await seedYesterday()
+    const user = userEvent.setup()
+    renderPanel()
+
+    await user.click(
+      await screen.findByRole('button', { name: 'Копировать приём в текущий день: Завтрак' }),
+    )
+
+    await waitFor(async () => {
+      const day = await getDay(OPEN)
+      expect(day.meals).toHaveLength(1)
+      expect(day.meals[0]!.items[0]!.name).toBe('Овсянка')
     })
   })
 
@@ -82,6 +98,6 @@ describe('HistoryPanel', () => {
     await user.click(screen.getByRole('button', { name: 'История: день вперёд' }))
 
     await screen.findByText(/Это открытый день/)
-    expect(screen.queryByRole('button', { name: 'Скопировать день в открытый' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Копировать в текущий день' })).not.toBeInTheDocument()
   })
 })

@@ -56,8 +56,11 @@
   cursor: default;
 }
 
+/* появляется, только когда открыт не сегодняшний день */
 .todayButton {
   font-weight: 600;
+  color: var(--color-accent);
+  font-size: var(--font-size-s);
 }
 
 .dateInput {
@@ -133,7 +136,9 @@
 
 .panel {
   min-height: 0;
+  min-width: 0;
   overflow-y: auto;
+  overflow-x: hidden;
   padding: var(--space-4);
   background: var(--color-surface);
   border: 1px solid var(--color-border);
