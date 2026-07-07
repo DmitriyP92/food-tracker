@@ -7,6 +7,7 @@ import { shiftISODate, todayISO } from './features/day/date'
 import { DayPanel } from './features/day/DayPanel'
 import { LibraryPanel, ProductCardGhost } from './features/library/LibraryPanel'
 import { LibrarySheet } from './features/library/LibrarySheet'
+import { TemplatesPanel } from './features/templates/TemplatesPanel'
 import styles from './App.module.css'
 
 function App() {
@@ -76,11 +77,7 @@ function App() {
 
           <section className={styles.panel} aria-label="Шаблоны">
             <h2 className={styles.panelTitle}>Шаблоны</h2>
-            <p className={styles.empty}>
-              Шаблонов пока нет.
-              <br />
-              Шаблоны приёмов пищи — Фаза 2.
-            </p>
+            <TemplatesPanel date={date} />
           </section>
         </main>
 

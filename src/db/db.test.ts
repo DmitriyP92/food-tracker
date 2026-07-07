@@ -3,6 +3,7 @@ import {
   MAX_TEMPLATES_PER_CATEGORY,
   addProduct,
   addProductToMeal,
+  applyTemplate,
   db,
   deleteProduct,
   exportBackup,
@@ -16,6 +17,7 @@ import {
   saveTemplate,
   updateMealItem,
   updateProduct,
+  updateTemplate,
 } from './db'
 
 const DATE = '2026-06-01'
@@ -131,6 +133,54 @@ describe('шаблоны', () => {
       saveTemplate({ name: 'Обеденный', categoryId: lunch!.id, items }),
     ).resolves.toBeDefined()
     expect(await listTemplates(breakfast!.id)).toHaveLength(MAX_TEMPLATES_PER_CATEGORY)
+  })
+
+  it('применяет шаблон как независимую копию (US-15)', async () => {
+    const [breakfast] = await listCategories()
+    const template = await saveTemplate({
+      name: 'Утро',
+      categoryId: breakfast!.id,
+      items: [
+        { name: 'Каша', weight: 200, unit: 'г' },
+        { name: 'Кофе', weight: 250, unit: 'мл' },
+      ],
+    })
+
+    const day = await applyTemplate(DATE, template.id)
+    expect(day.meals[0]!.items).toHaveLength(2)
+
+    // правка применённой копии не меняет шаблон (US-15/16)
+    await updateMealItem(DATE, breakfast!.id, 0, { weight: 300 })
+    const [stored] = await listTemplates(breakfast!.id)
+    expect(stored!.items[0]!.weight).toBe(200)
+  })
+
+  it('редактирует шаблон, не трогая дневник и библиотеку (US-17)', async () => {
+    const [breakfast] = await listCategories()
+    const template = await saveTemplate({
+      name: 'Утро',
+      categoryId: breakfast!.id,
+      items: [
+        { name: 'Каша', weight: 200, unit: 'г' },
+        { name: 'Кофе', weight: 250, unit: 'мл' },
+      ],
+    })
+    await applyTemplate(DATE, template.id)
+
+    // убрать «Кофе» из шаблона и переименовать
+    const updated = await updateTemplate(template.id, {
+      name: 'Утро без кофе',
+      items: template.items.filter((item) => item.name !== 'Кофе'),
+    })
+    expect(updated.items).toHaveLength(1)
+
+    // применённый ранее день не изменился
+    const day = await getDay(DATE)
+    expect(day.meals[0]!.items).toHaveLength(2)
+  })
+
+  it('отклоняет применение несуществующего шаблона', async () => {
+    await expect(applyTemplate(DATE, 'нет-такого')).rejects.toThrow()
   })
 })
 

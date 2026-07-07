@@ -2,6 +2,7 @@ import { useLiveQuery } from 'dexie-react-hooks'
 import { useDroppable } from '@dnd-kit/core'
 import { getDay, listCategories, removeMealItem, updateMealItem } from '../../db/db'
 import type { Category, Meal, MealItem } from '../../types/models'
+import { SaveTemplateButton } from '../templates/SaveTemplateButton'
 import { dayTotal, mealTotal } from './totals'
 import { formatDayTitle } from './date'
 import styles from './DayPanel.module.css'
@@ -60,7 +61,10 @@ function MealSection({
     >
       <header className={styles.mealHeader}>
         <h3 className={styles.mealTitle}>{category.name}</h3>
-        <span className={styles.mealTotal}>{mealTotal(meal)} г</span>
+        <span className={styles.mealActions}>
+          {meal && meal.items.length > 0 && <SaveTemplateButton category={category} meal={meal} />}
+          <span className={styles.mealTotal}>{mealTotal(meal)} г</span>
+        </span>
       </header>
       {meal && meal.items.length > 0 ? (
         <ul className={styles.items}>

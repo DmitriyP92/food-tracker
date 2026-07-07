@@ -227,8 +227,48 @@ export async function saveTemplate(input: {
   })
 }
 
+/** Меняет шаблон (имя и/или состав). Затрагивает только этот шаблон (US-17). */
+export async function updateTemplate(
+  id: string,
+  patch: Partial<Pick<Template, 'name' | 'items'>>,
+): Promise<Template> {
+  return db.transaction('rw', db.templates, async () => {
+    const existing = await db.templates.get(id)
+    if (!existing) throw new Error('Шаблон не найден')
+    const updated: Template = {
+      ...existing,
+      ...patch,
+      items: (patch.items ?? existing.items).map((item) => ({ ...item })),
+    }
+    updated.name = updated.name.trim()
+    if (!updated.name) throw new Error('Название шаблона не может быть пустым')
+    await db.templates.put(updated)
+    return updated
+  })
+}
+
 export async function deleteTemplate(id: string): Promise<void> {
   await db.templates.delete(id)
+}
+
+/**
+ * Применяет шаблон к выбранному дню: продукты добавляются в приём категории
+ * шаблона как независимые копии (US-15). Правки дня не меняют шаблон.
+ */
+export async function applyTemplate(date: string, templateId: string): Promise<Day> {
+  return db.transaction('rw', [db.days, db.templates], async () => {
+    const template = await db.templates.get(templateId)
+    if (!template) throw new Error('Шаблон не найден')
+    const day = await getDay(date)
+    let meal: Meal | undefined = day.meals.find((m) => m.categoryId === template.categoryId)
+    if (!meal) {
+      meal = { categoryId: template.categoryId, items: [] }
+      day.meals.push(meal)
+    }
+    meal.items.push(...template.items.map((item) => ({ ...item })))
+    await db.days.put(day)
+    return day
+  })
 }
 
 // ───────────────────────── Резервная копия (JSON) ─────────────────────────
