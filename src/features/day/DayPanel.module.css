@@ -1,0 +1,141 @@
+.day {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.title {
+  margin: 0;
+  font-size: var(--font-size-m);
+  font-weight: 600;
+  color: var(--color-text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.meal {
+  padding: var(--space-3);
+  background: var(--color-surface-2);
+  border: 1px solid transparent;
+  border-radius: var(--radius-s);
+  transition: border-color 0.15s ease;
+}
+
+/* Подсветка зоны при перетаскивании продукта над приёмом */
+.mealOver {
+  border-color: var(--color-accent);
+  background: color-mix(in srgb, var(--color-surface-2) 85%, var(--color-accent));
+}
+
+.mealHeader {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  margin-bottom: var(--space-2);
+}
+
+.mealTitle {
+  margin: 0;
+  font-size: var(--font-size-m);
+}
+
+.mealTotal {
+  color: var(--color-accent);
+  font-size: var(--font-size-s);
+  font-variant-numeric: tabular-nums;
+}
+
+.items {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.item {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-1) 0;
+  border-top: 1px solid var(--color-border);
+}
+
+.itemName {
+  flex: 1;
+  overflow-wrap: anywhere;
+}
+
+.itemWeight {
+  width: 72px;
+  min-height: 36px;
+  padding: 0 var(--space-2);
+  border: 1px solid transparent;
+  border-radius: var(--radius-s);
+  background: transparent;
+  color: var(--color-text);
+  text-align: right;
+  font: inherit;
+  font-variant-numeric: tabular-nums;
+}
+
+.itemWeight:hover,
+.itemWeight:focus {
+  border-color: var(--color-border);
+  background: var(--color-bg);
+}
+
+.itemUnit {
+  color: var(--color-text-muted);
+  font-size: var(--font-size-s);
+}
+
+.itemRemove {
+  width: 36px;
+  min-height: 36px;
+  border: none;
+  border-radius: var(--radius-s);
+  background: transparent;
+  color: var(--color-text-muted);
+  font-size: var(--font-size-l);
+  line-height: 1;
+  cursor: pointer;
+}
+
+.itemRemove:hover {
+  color: var(--color-danger);
+  background: var(--color-surface);
+}
+
+.empty {
+  margin: 0 0 var(--space-2);
+  color: var(--color-text-muted);
+  font-size: var(--font-size-s);
+}
+
+.addToMeal {
+  width: 100%;
+  min-height: 40px;
+  margin-top: var(--space-2);
+  border: 1px dashed var(--color-border);
+  border-radius: var(--radius-s);
+  background: transparent;
+  color: var(--color-text-muted);
+  cursor: pointer;
+}
+
+.addToMeal:hover {
+  color: var(--color-accent);
+  border-color: var(--color-accent);
+}
+
+.dayTotal {
+  display: flex;
+  justify-content: space-between;
+  padding-top: var(--space-3);
+  border-top: 1px solid var(--color-border);
+  font-weight: 600;
+}
+
+.dayTotalValue {
+  color: var(--color-accent);
+  font-variant-numeric: tabular-nums;
+}
