@@ -1,0 +1,9 @@
+# Документы PM/PO — не переформатируем автоматически
+CLAUDE.md
+docs
+
+dist
+dev-dist
+node_modules
+playwright-report
+test-results

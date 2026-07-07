@@ -1,0 +1,32 @@
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+}
+
+body {
+  margin: 0;
+  background: var(--color-bg);
+  color: var(--color-text);
+  font-family: var(--font-family);
+  font-size: var(--font-size-m);
+  line-height: 1.45;
+  -webkit-font-smoothing: antialiased;
+  /* PWA на iOS: без «резинового» скролла всей страницы и без серой вспышки при тапе */
+  overscroll-behavior: none;
+  -webkit-tap-highlight-color: transparent;
+  /* Безопасные зоны iPhone/iPad (вырез, индикатор Home) */
+  padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom)
+    env(safe-area-inset-left);
+}
+
+button {
+  font: inherit;
+  color: inherit;
+}
