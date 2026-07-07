@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { useLiveQuery } from 'dexie-react-hooks'
 import { addProductToMeal, listProducts } from '../../db/db'
 import type { Category, Product } from '../../types/models'
+import { SearchField } from './SearchField'
 import { filterProducts } from './search'
 import styles from './LibrarySheet.module.css'
 
@@ -41,14 +42,7 @@ export function LibrarySheet({ date, category, onClose }: Props) {
           </button>
         </header>
         {products.length > 0 && (
-          <input
-            type="search"
-            className={styles.search}
-            placeholder="Поиск…"
-            aria-label="Поиск в шторке библиотеки"
-            value={query}
-            onChange={(e) => setQuery(e.target.value)}
-          />
+          <SearchField value={query} onChange={setQuery} ariaLabel="Поиск в шторке библиотеки" />
         )}
         {products.length === 0 ? (
           <p className={styles.empty}>Библиотека пуста — сначала добавьте продукт.</p>

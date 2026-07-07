@@ -86,6 +86,26 @@ describe('LibraryPanel', () => {
     await screen.findByText('Ничего не найдено.')
   })
 
+  it('крестик очищает поиск и возвращает весь список', async () => {
+    await addProduct({ name: 'Творог', defaultWeight: 150, unit: 'г' })
+    await addProduct({ name: 'Сыр', defaultWeight: 20, unit: 'г' })
+    const user = userEvent.setup()
+    renderPanel()
+
+    await screen.findByText('Творог')
+    // пока поиск пуст, крестика нет
+    expect(screen.queryByRole('button', { name: 'Очистить поиск' })).not.toBeInTheDocument()
+
+    await user.type(screen.getByLabelText('Поиск по библиотеке'), 'сыр')
+    expect(screen.queryByText('Творог')).not.toBeInTheDocument()
+
+    await user.click(screen.getByRole('button', { name: 'Очистить поиск' }))
+
+    expect(screen.getByLabelText('Поиск по библиотеке')).toHaveValue('')
+    expect(screen.getByText('Творог')).toBeInTheDocument()
+    expect(screen.getByText('Сыр')).toBeInTheDocument()
+  })
+
   it('удаляет продукт (US-3)', async () => {
     await addProduct({ name: 'Кефир', defaultWeight: 250, unit: 'мл' })
     const user = userEvent.setup()

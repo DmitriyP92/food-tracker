@@ -4,6 +4,7 @@ import { useDraggable } from '@dnd-kit/core'
 import { addProduct, deleteProduct, listProducts, updateProduct } from '../../db/db'
 import type { Product } from '../../types/models'
 import { ProductForm } from './ProductForm'
+import { SearchField } from './SearchField'
 import { filterProducts } from './search'
 import styles from './LibraryPanel.module.css'
 
@@ -22,14 +23,7 @@ export function LibraryPanel() {
   return (
     <div>
       {products.length > 0 && (
-        <input
-          type="search"
-          className={styles.search}
-          placeholder="Поиск…"
-          aria-label="Поиск по библиотеке"
-          value={query}
-          onChange={(e) => setQuery(e.target.value)}
-        />
+        <SearchField value={query} onChange={setQuery} ariaLabel="Поиск по библиотеке" />
       )}
       {adding ? (
         <ProductForm

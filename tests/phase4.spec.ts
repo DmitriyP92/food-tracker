@@ -20,7 +20,9 @@ test('поиск в библиотеке фильтрует по части на
   await expect(page.getByText('Сыр плавленый')).toBeVisible()
   await expect(page.getByText('Творог нежирный')).toHaveCount(0)
 
-  await page.getByLabel('Поиск по библиотеке').fill('')
+  // крестик сбрасывает запрос
+  await page.getByRole('button', { name: 'Очистить поиск' }).click()
+  await expect(page.getByLabel('Поиск по библиотеке')).toHaveValue('')
   await expect(page.getByText('Творог нежирный')).toBeVisible()
 })
 
