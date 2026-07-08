@@ -42,10 +42,15 @@ export interface Meal {
   items: MealItem[]
 }
 
-/** Запись дня. Ключ — дата ISO «2026-06-01». Приёмы пищи хранятся вложенно. */
+/**
+ * Запись дня. Ключ — дата ISO «2026-06-01». Приёмы пищи хранятся вложенно.
+ * `updatedAt` — момент последней записи дня; используется при слиянии
+ * переноса между устройствами (US-28): побеждает более свежий день.
+ */
 export interface Day {
   date: string
   meals: Meal[]
+  updatedAt: string
 }
 
 /** Шаблон приёма пищи. До 10 на категорию (ограничение в логике db). */
@@ -56,7 +61,7 @@ export interface Template {
   items: MealItem[]
 }
 
-/** Формат файла резервной копии (экспорт/импорт JSON). */
+/** Формат файла резервной копии (экспорт/импорт JSON). v2: дни с updatedAt. */
 export interface BackupData {
   format: 'food-tracker-backup'
   version: number
@@ -65,4 +70,12 @@ export interface BackupData {
   categories: Category[]
   days: Day[]
   templates: Template[]
+}
+
+/** Итог слияния при переносе между устройствами (US-28, режим «Объединить»). */
+export interface MergeReport {
+  days: { added: number; updated: number; kept: number }
+  products: { added: number; updated: number; kept: number }
+  categories: { added: number; kept: number }
+  templates: { added: number; kept: number; skipped: number }
 }

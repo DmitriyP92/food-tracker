@@ -4,6 +4,7 @@ import type { Day } from '../../types/models'
 
 const day: Day = {
   date: '2026-06-01',
+  updatedAt: '2026-06-01T10:00:00.000Z',
   meals: [
     {
       categoryId: 'breakfast',
@@ -25,6 +26,6 @@ describe('итоги (US-10)', () => {
   it('общий итог за день — сумма по всем приёмам', () => {
     expect(dayTotal(day)).toBe(610)
     expect(dayTotal(null)).toBe(0)
-    expect(dayTotal({ date: '2026-06-02', meals: [] })).toBe(0)
+    expect(dayTotal({ date: '2026-06-02', meals: [], updatedAt: '' })).toBe(0)
   })
 })

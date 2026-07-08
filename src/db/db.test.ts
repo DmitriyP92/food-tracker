@@ -1,5 +1,9 @@
 import { beforeEach, describe, expect, it } from 'vitest'
+import Dexie from 'dexie'
+import type { BackupData } from '../types/models'
 import {
+  BACKUP_FORMAT,
+  BACKUP_VERSION,
   MAX_TEMPLATES_PER_CATEGORY,
   addCategory,
   addProduct,
@@ -17,6 +21,7 @@ import {
   listCategories,
   listProducts,
   listTemplates,
+  mergeBackup,
   removeMealItem,
   saveTemplate,
   setCategoryOrder,
@@ -296,6 +301,313 @@ describe('шаблоны', () => {
 
   it('отклоняет применение несуществующего шаблона', async () => {
     await expect(applyTemplate(DATE, 'нет-такого')).rejects.toThrow()
+  })
+})
+
+describe('миграция схемы v1 → v2 (US-28)', () => {
+  it('проставляет updatedAt существующим дням при апгрейде', async () => {
+    await db.delete()
+    // база «старого» приложения: версия 1, день без updatedAt
+    const raw = new Dexie('food-tracker')
+    raw.version(1).stores({
+      products: 'id, name, updatedAt',
+      categories: 'id, order',
+      days: 'date',
+      templates: 'id, categoryId',
+    })
+    await raw.open()
+    await raw.table('days').add({
+      date: '2026-05-01',
+      meals: [{ categoryId: 'x', items: [{ name: 'Каша', weight: 200, unit: 'г' }] }],
+    })
+    raw.close()
+
+    await db.open() // апгрейд до v2
+    const day = await getDay('2026-05-01')
+    expect(day.updatedAt).toBeTruthy()
+    expect(day.meals[0]!.items[0]!.name).toBe('Каша')
+  })
+
+  it('каждая мутация дня обновляет updatedAt', async () => {
+    const [breakfast, lunch] = await listCategories()
+    const product = await addProduct({ name: 'Овсянка', defaultWeight: 60, unit: 'г' })
+    const stamps: string[] = []
+    const tick = () => new Promise((r) => setTimeout(r, 2))
+
+    let day = await addProductToMeal(DATE, breakfast!.id, product)
+    stamps.push(day.updatedAt)
+    await tick()
+    day = await updateMealItem(DATE, breakfast!.id, 0, { weight: 90 })
+    stamps.push(day.updatedAt)
+    await tick()
+    day = await copyDay(DATE, '2026-06-02')
+    stamps.push(day.updatedAt)
+    await tick()
+    day = await copyMeal(DATE, '2026-06-03', breakfast!.id)
+    stamps.push(day.updatedAt)
+    await tick()
+    const template = await saveTemplate({
+      name: 'Утро',
+      categoryId: lunch!.id,
+      items: [{ name: 'Суп', weight: 350, unit: 'г' }],
+    })
+    day = await applyTemplate(DATE, template.id)
+    stamps.push(day.updatedAt)
+    await tick()
+    day = await removeMealItem(DATE, breakfast!.id, 0)
+    stamps.push(day.updatedAt)
+
+    expect(stamps.every(Boolean)).toBe(true)
+    for (let i = 1; i < stamps.length; i++) {
+      expect(stamps[i]! > stamps[i - 1]!).toBe(true)
+    }
+  })
+})
+
+/** Файл «с другого устройства»: свои UUID у всего, включая дефолтные категории. */
+function deviceFile(overrides: Partial<BackupData> = {}): BackupData {
+  return {
+    format: BACKUP_FORMAT,
+    version: BACKUP_VERSION,
+    exportedAt: '2026-06-10T10:00:00.000Z',
+    products: [],
+    categories: [],
+    days: [],
+    templates: [],
+    ...overrides,
+  }
+}
+
+describe('перенос между устройствами — mergeBackup (US-28)', () => {
+  it('добавляет дни из файла, не трогая локальные (критерии 2, 7)', async () => {
+    const [breakfast] = await listCategories()
+    const product = await addProduct({ name: 'Локальный', defaultWeight: 100, unit: 'г' })
+    await addProductToMeal('2026-06-05', breakfast!.id, product)
+
+    const report = await mergeBackup(
+      deviceFile({
+        days: [
+          {
+            date: '2026-06-01',
+            meals: [{ categoryId: 'remote-cat', items: [{ name: 'Каша', weight: 200, unit: 'г' }] }],
+            updatedAt: '2026-06-01T09:00:00.000Z',
+          },
+        ],
+      }),
+    )
+
+    expect(report.days).toEqual({ added: 1, updated: 0, kept: 0 })
+    expect((await getDay('2026-06-01')).meals[0]!.items[0]!.name).toBe('Каша')
+    // локальный день не тронут
+    expect((await getDay('2026-06-05')).meals[0]!.items[0]!.name).toBe('Локальный')
+  })
+
+  it('конфликт дня: побеждает более свежий, при равенстве — локальный', async () => {
+    const [breakfast] = await listCategories()
+    const product = await addProduct({ name: 'Локальный', defaultWeight: 100, unit: 'г' })
+    const local = await addProductToMeal(DATE, breakfast!.id, product)
+
+    // файл СТАРЕЕ локального → локальный остаётся
+    let report = await mergeBackup(
+      deviceFile({
+        days: [
+          {
+            date: DATE,
+            meals: [{ categoryId: 'x', items: [{ name: 'Старый', weight: 1, unit: 'г' }] }],
+            updatedAt: '2020-01-01T00:00:00.000Z',
+          },
+        ],
+      }),
+    )
+    expect(report.days).toEqual({ added: 0, updated: 0, kept: 1 })
+    expect((await getDay(DATE)).meals[0]!.items[0]!.name).toBe('Локальный')
+
+    // файл НОВЕЕ локального → файл побеждает
+    report = await mergeBackup(
+      deviceFile({
+        days: [
+          {
+            date: DATE,
+            meals: [{ categoryId: 'x', items: [{ name: 'Новый', weight: 2, unit: 'г' }] }],
+            updatedAt: '2099-01-01T00:00:00.000Z',
+          },
+        ],
+      }),
+    )
+    expect(report.days).toEqual({ added: 0, updated: 1, kept: 0 })
+    expect((await getDay(DATE)).meals[0]!.items[0]!.name).toBe('Новый')
+
+    // равные метки → локальный
+    report = await mergeBackup(
+      deviceFile({
+        days: [{ date: '2026-06-07', meals: [], updatedAt: local.updatedAt }],
+      }),
+    )
+    expect(report.days.added).toBe(1)
+  })
+
+  it('продукты: более свежий побеждает, локальные не удаляются', async () => {
+    const localOnly = await addProduct({ name: 'Только локальный', defaultWeight: 1, unit: 'г' })
+    const shared = await addProduct({ name: 'Общий', defaultWeight: 100, unit: 'г' })
+
+    const report = await mergeBackup(
+      deviceFile({
+        products: [
+          { ...shared, name: 'Общий обновлённый', updatedAt: '2099-01-01T00:00:00.000Z' },
+          {
+            id: 'remote-product',
+            name: 'Новый с iPad',
+            defaultWeight: 50,
+            unit: 'г',
+            createdAt: '2026-06-01T00:00:00.000Z',
+            updatedAt: '2026-06-01T00:00:00.000Z',
+          },
+        ],
+      }),
+    )
+
+    expect(report.products).toEqual({ added: 1, updated: 1, kept: 0 })
+    expect((await getProduct(shared.id))!.name).toBe('Общий обновлённый')
+    expect((await getProduct(localOnly.id))!.name).toBe('Только локальный')
+    expect(await listProducts()).toHaveLength(3)
+  })
+
+  it('склеивает дефолтные категории по имени и переписывает categoryId (§5)', async () => {
+    const [localBreakfast] = await listCategories()
+
+    const report = await mergeBackup(
+      deviceFile({
+        categories: [{ id: 'remote-breakfast', name: 'завтрак', isDefault: true, order: 0 }],
+        days: [
+          {
+            date: '2026-06-01',
+            meals: [
+              { categoryId: 'remote-breakfast', items: [{ name: 'Каша', weight: 200, unit: 'г' }] },
+            ],
+            updatedAt: '2026-06-01T09:00:00.000Z',
+          },
+        ],
+        templates: [
+          {
+            id: 'remote-template',
+            name: 'Утро',
+            categoryId: 'remote-breakfast',
+            items: [{ name: 'Каша', weight: 200, unit: 'г' }],
+          },
+        ],
+      }),
+    )
+
+    expect(report.categories).toEqual({ added: 0, kept: 1 })
+    expect(await listCategories()).toHaveLength(3)
+    // categoryId в дне и шаблоне переписан на локальный id
+    expect((await getDay('2026-06-01')).meals[0]!.categoryId).toBe(localBreakfast!.id)
+    expect((await listTemplates())[0]!.categoryId).toBe(localBreakfast!.id)
+  })
+
+  it('пользовательская категория из файла добавляется в конец', async () => {
+    const report = await mergeBackup(
+      deviceFile({
+        categories: [{ id: 'remote-snack', name: 'Перекус', isDefault: false, order: 0 }],
+      }),
+    )
+    expect(report.categories).toEqual({ added: 1, kept: 0 })
+    const categories = await listCategories()
+    expect(categories.map((c) => c.name)).toEqual(['Завтрак', 'Обед', 'Ужин', 'Перекус'])
+  })
+
+  it('шаблоны сверх лимита пропускаются и попадают в отчёт', async () => {
+    const [breakfast] = await listCategories()
+    const items = [{ name: 'Каша', weight: 200, unit: 'г' }]
+    for (let i = 0; i < MAX_TEMPLATES_PER_CATEGORY; i++) {
+      await saveTemplate({ name: `Шаблон ${i}`, categoryId: breakfast!.id, items })
+    }
+
+    const report = await mergeBackup(
+      deviceFile({
+        categories: [{ id: 'remote-breakfast', name: 'Завтрак', isDefault: true, order: 0 }],
+        templates: [{ id: 'remote-template', name: 'Лишний', categoryId: 'remote-breakfast', items }],
+      }),
+    )
+
+    expect(report.templates).toEqual({ added: 0, kept: 0, skipped: 1 })
+    expect(await listTemplates()).toHaveLength(MAX_TEMPLATES_PER_CATEGORY)
+  })
+
+  it('идемпотентность: повторное слияние того же файла ничего не меняет (критерий 4)', async () => {
+    const file = deviceFile({
+      categories: [{ id: 'remote-snack', name: 'Перекус', isDefault: false, order: 0 }],
+      products: [
+        {
+          id: 'remote-product',
+          name: 'С iPad',
+          defaultWeight: 50,
+          unit: 'г',
+          createdAt: '2026-06-01T00:00:00.000Z',
+          updatedAt: '2026-06-01T00:00:00.000Z',
+        },
+      ],
+      days: [
+        {
+          date: '2026-06-01',
+          meals: [{ categoryId: 'remote-snack', items: [{ name: 'Яблоко', weight: 150, unit: 'г' }] }],
+          updatedAt: '2026-06-01T09:00:00.000Z',
+        },
+      ],
+      templates: [
+        {
+          id: 'remote-template',
+          name: 'Перекусить',
+          categoryId: 'remote-snack',
+          items: [{ name: 'Яблоко', weight: 150, unit: 'г' }],
+        },
+      ],
+    })
+
+    const first = await mergeBackup(JSON.parse(JSON.stringify(file)) as unknown)
+    expect(first.days.added).toBe(1)
+    expect(first.products.added).toBe(1)
+    expect(first.categories.added).toBe(1)
+    expect(first.templates.added).toBe(1)
+
+    const second = await mergeBackup(JSON.parse(JSON.stringify(file)) as unknown)
+    expect(second).toEqual({
+      days: { added: 0, updated: 0, kept: 1 },
+      products: { added: 0, updated: 0, kept: 1 },
+      categories: { added: 0, kept: 1 },
+      templates: { added: 0, kept: 1, skipped: 0 },
+    })
+    expect((await getDay('2026-06-01')).meals[0]!.items).toHaveLength(1)
+  })
+
+  it('принимает файл v1 без updatedAt у дней в обоих режимах (критерий 6)', async () => {
+    const v1 = {
+      format: BACKUP_FORMAT,
+      version: 1,
+      exportedAt: '2026-06-01T10:00:00.000Z',
+      products: [],
+      categories: [],
+      days: [
+        {
+          date: '2026-05-30',
+          meals: [{ categoryId: 'x', items: [{ name: 'Каша', weight: 200, unit: 'г' }] }],
+        },
+      ],
+      templates: [],
+    }
+
+    const report = await mergeBackup(JSON.parse(JSON.stringify(v1)) as unknown)
+    expect(report.days.added).toBe(1)
+    expect((await getDay('2026-05-30')).updatedAt).toBe(v1.exportedAt)
+
+    await importBackup(JSON.parse(JSON.stringify(v1)) as unknown)
+    expect((await getDay('2026-05-30')).updatedAt).toBe(v1.exportedAt)
+  })
+
+  it('отклоняет чужой файл той же ошибкой, что и importBackup', async () => {
+    await expect(mergeBackup({ hello: 'world' })).rejects.toThrow(
+      'Файл не является резервной копией Food Tracker',
+    )
   })
 })
 

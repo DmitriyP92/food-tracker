@@ -5,11 +5,21 @@
  * Версионирование схемы — через db.version(N).stores(...) + upgrade-миграции.
  */
 import Dexie, { type Table } from 'dexie'
-import type { BackupData, Category, Day, Meal, MealItem, Product, Template } from '../types/models'
+import type {
+  BackupData,
+  Category,
+  Day,
+  Meal,
+  MealItem,
+  MergeReport,
+  Product,
+  Template,
+} from '../types/models'
 
 export const MAX_TEMPLATES_PER_CATEGORY = 10
 export const BACKUP_FORMAT = 'food-tracker-backup'
-export const BACKUP_VERSION = 1
+/** v2: у дней появился updatedAt (US-28). Файлы v1 принимаются на импорт. */
+export const BACKUP_VERSION = 2
 
 const DEFAULT_CATEGORY_NAMES = ['Завтрак', 'Обед', 'Ужин']
 
@@ -26,6 +36,16 @@ class FoodTrackerDB extends Dexie {
       categories: 'id, order',
       days: 'date',
       templates: 'id, categoryId',
+    })
+    // v2: Day.updatedAt для слияния при переносе (US-28); индексы не меняются
+    this.version(2).upgrade(async (tx) => {
+      const now = new Date().toISOString()
+      await tx
+        .table<Day, string>('days')
+        .toCollection()
+        .modify((day) => {
+          day.updatedAt ??= now
+        })
     })
     this.on('populate', (tx) => seedDefaultCategories(tx.table('categories')))
   }
@@ -164,8 +184,16 @@ export async function deleteCategory(id: string): Promise<void> {
 
 // ───────────────────────── Дни и приёмы пищи ─────────────────────────
 
+/** Не сохранённый в БД день возвращается с пустым updatedAt (в БД не пишется). */
 export async function getDay(date: string): Promise<Day> {
-  return (await db.days.get(date)) ?? { date, meals: [] }
+  return (await db.days.get(date)) ?? { date, meals: [], updatedAt: '' }
+}
+
+/** Сохраняет день, штампуя момент записи (для слияния при переносе, US-28). */
+async function putDay(day: Day): Promise<Day> {
+  day.updatedAt = nowISO()
+  await db.days.put(day)
+  return day
 }
 
 function snapshotOf(product: Product, weight?: number): MealItem {
@@ -204,8 +232,7 @@ export async function addItemToMeal(
       day.meals.push(meal)
     }
     meal.items.push({ ...item })
-    await db.days.put(day)
-    return day
+    return putDay(day)
   })
 }
 
@@ -226,8 +253,7 @@ export async function updateMealItem(
     if (!Number.isFinite(updated.weight) || updated.weight <= 0)
       throw new Error('Вес должен быть положительным числом')
     meal.items[itemIndex] = updated
-    await db.days.put(day)
-    return day
+    return putDay(day)
   })
 }
 
@@ -244,8 +270,7 @@ export async function removeMealItem(
       throw new Error('Запись не найдена')
     meal.items.splice(itemIndex, 1)
     day.meals = day.meals.filter((m) => m.items.length > 0)
-    await db.days.put(day)
-    return day
+    return putDay(day)
   })
 }
 
@@ -271,8 +296,7 @@ export async function copyDay(fromDate: string, toDate: string): Promise<Day> {
       }
       targetMeal.items.push(...meal.items.map((item) => ({ ...item })))
     }
-    await db.days.put(target)
-    return target
+    return putDay(target)
   })
 }
 
@@ -294,8 +318,7 @@ export async function copyMeal(
       target.meals.push(targetMeal)
     }
     targetMeal.items.push(...sourceMeal.items.map((item) => ({ ...item })))
-    await db.days.put(target)
-    return target
+    return putDay(target)
   })
 }
 
@@ -368,8 +391,7 @@ export async function applyTemplate(date: string, templateId: string): Promise<D
       day.meals.push(meal)
     }
     meal.items.push(...template.items.map((item) => ({ ...item })))
-    await db.days.put(day)
-    return day
+    return putDay(day)
   })
 }
 
@@ -391,6 +413,7 @@ export async function exportBackup(): Promise<BackupData> {
 /** Импорт резервной копии. ПОЛНОСТЬЮ заменяет текущие данные. */
 export async function importBackup(data: unknown): Promise<void> {
   if (!isBackupData(data)) throw new Error('Файл не является резервной копией Food Tracker')
+  const days = normalizeBackupDays(data)
   await db.transaction('rw', [db.products, db.categories, db.days, db.templates], async () => {
     await Promise.all([
       db.products.clear(),
@@ -400,9 +423,112 @@ export async function importBackup(data: unknown): Promise<void> {
     ])
     await db.products.bulkAdd(data.products)
     await db.categories.bulkAdd(data.categories)
-    await db.days.bulkAdd(data.days)
+    await db.days.bulkAdd(days)
     await db.templates.bulkAdd(data.templates)
   })
+}
+
+/**
+ * Слияние резервной копии с локальными данными — перенос между устройствами
+ * (US-28, режим «Объединить»). Ничего локального не удаляет; правила — в
+ * docs/stories/US-28-icloud-transfer.md §5. Идемпотентно.
+ */
+export async function mergeBackup(data: unknown): Promise<MergeReport> {
+  if (!isBackupData(data)) throw new Error('Файл не является резервной копией Food Tracker')
+  const fileDays = normalizeBackupDays(data)
+
+  const report: MergeReport = {
+    days: { added: 0, updated: 0, kept: 0 },
+    products: { added: 0, updated: 0, kept: 0 },
+    categories: { added: 0, kept: 0 },
+    templates: { added: 0, kept: 0, skipped: 0 },
+  }
+
+  await db.transaction('rw', [db.products, db.categories, db.days, db.templates], async () => {
+    // Категории: матч по id, затем по имени (дефолтные на двух устройствах
+    // имеют разные UUID — склеиваем по имени и переписываем categoryId ниже)
+    const localCategories = await db.categories.toArray()
+    const categoryIdMap = new Map<string, string>()
+    let nextOrder = Math.max(0, ...localCategories.map((c) => c.order)) + 1
+    for (const fileCategory of data.categories) {
+      const byId = localCategories.find((c) => c.id === fileCategory.id)
+      const byName =
+        byId ?? localCategories.find((c) => c.name.toLowerCase() === fileCategory.name.toLowerCase())
+      if (byId) {
+        report.categories.kept++
+      } else if (byName) {
+        categoryIdMap.set(fileCategory.id, byName.id)
+        report.categories.kept++
+      } else {
+        const added: Category = { ...fileCategory, order: nextOrder++ }
+        await db.categories.add(added)
+        report.categories.added++
+      }
+    }
+    const mapCategoryId = (id: string) => categoryIdMap.get(id) ?? id
+
+    // Продукты: побеждает более свежий updatedAt
+    for (const fileProduct of data.products) {
+      const local = await db.products.get(fileProduct.id)
+      if (!local) {
+        await db.products.add(fileProduct)
+        report.products.added++
+      } else if (fileProduct.updatedAt > local.updatedAt) {
+        await db.products.put(fileProduct)
+        report.products.updated++
+      } else {
+        report.products.kept++
+      }
+    }
+
+    // Дни: день — атом; побеждает более свежий updatedAt, при равенстве локальный
+    for (const fileDay of fileDays) {
+      const remapped: Day = {
+        ...fileDay,
+        meals: fileDay.meals.map((meal) => ({
+          categoryId: mapCategoryId(meal.categoryId),
+          items: meal.items.map((item) => ({ ...item })),
+        })),
+      }
+      const local = await db.days.get(fileDay.date)
+      if (!local) {
+        await db.days.add(remapped)
+        report.days.added++
+      } else if (remapped.updatedAt > local.updatedAt) {
+        await db.days.put(remapped)
+        report.days.updated++
+      } else {
+        report.days.kept++
+      }
+    }
+
+    // Шаблоны: локальный остаётся; новые — в пределах лимита на категорию
+    for (const fileTemplate of data.templates) {
+      const local = await db.templates.get(fileTemplate.id)
+      if (local) {
+        report.templates.kept++
+        continue
+      }
+      const categoryId = mapCategoryId(fileTemplate.categoryId)
+      const count = await db.templates.where('categoryId').equals(categoryId).count()
+      if (count >= MAX_TEMPLATES_PER_CATEGORY) {
+        report.templates.skipped++
+        continue
+      }
+      await db.templates.add({ ...fileTemplate, categoryId })
+      report.templates.added++
+    }
+  })
+
+  return report
+}
+
+/** Файлы v1 не содержат updatedAt у дней — проставляем момент экспорта файла. */
+function normalizeBackupDays(data: BackupData): Day[] {
+  return data.days.map((day) => ({
+    ...day,
+    updatedAt: (day as Partial<Day>).updatedAt ?? data.exportedAt,
+  }))
 }
 
 function isBackupData(data: unknown): data is BackupData {
@@ -410,7 +536,8 @@ function isBackupData(data: unknown): data is BackupData {
   const d = data as Record<string, unknown>
   return (
     d.format === BACKUP_FORMAT &&
-    d.version === BACKUP_VERSION &&
+    (d.version === 1 || d.version === 2) &&
+    typeof d.exportedAt === 'string' &&
     Array.isArray(d.products) &&
     Array.isArray(d.categories) &&
     Array.isArray(d.days) &&

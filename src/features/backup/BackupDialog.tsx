@@ -1,5 +1,6 @@
 import { useRef, useState } from 'react'
-import { exportBackup, importBackup } from '../../db/db'
+import { exportBackup, importBackup, mergeBackup } from '../../db/db'
+import type { MergeReport } from '../../types/models'
 import { todayISO } from '../day/date'
 import styles from './BackupDialog.module.css'
 
@@ -7,14 +8,39 @@ interface Props {
   onClose: () => void
 }
 
+interface PendingImport {
+  fileName: string
+  data: unknown
+}
+
+interface Status {
+  kind: 'ok' | 'error'
+  text: string
+  details?: string[]
+}
+
+function formatMergeReport(report: MergeReport): string[] {
+  return [
+    `Дни: добавлено ${report.days.added}, обновлено ${report.days.updated}, без изменений ${report.days.kept}`,
+    `Продукты: добавлено ${report.products.added}, обновлено ${report.products.updated}, без изменений ${report.products.kept}`,
+    `Категории: добавлено ${report.categories.added}, без изменений ${report.categories.kept}`,
+    `Шаблоны: добавлено ${report.templates.added}, без изменений ${report.templates.kept}` +
+      (report.templates.skipped > 0
+        ? `, пропущено ${report.templates.skipped} (лимит 10 на категорию)`
+        : ''),
+  ]
+}
+
 /**
- * Резервная копия: экспорт/импорт всех данных в JSON-файл.
- * Защита от очистки хранилища Safari при долгом неиспользовании PWA
- * (CLAUDE.md, PRD §10.6). Импорт ПОЛНОСТЬЮ заменяет текущие данные.
+ * Резервная копия и перенос между устройствами (US-28).
+ * Экспорт — JSON-файл через share sheet (сохраняется в iCloud Drive → «Файлы»);
+ * импорт — «Объединить» (перенос, ничего не удаляет) или «Заменить всё»
+ * (восстановление из бэкапа).
  */
 export function BackupDialog({ onClose }: Props) {
   const fileInput = useRef<HTMLInputElement>(null)
-  const [status, setStatus] = useState<{ kind: 'ok' | 'error'; text: string } | null>(null)
+  const [status, setStatus] = useState<Status | null>(null)
+  const [pending, setPending] = useState<PendingImport | null>(null)
 
   const handleExport = async () => {
     try {
@@ -49,20 +75,51 @@ export function BackupDialog({ onClose }: Props) {
     }
   }
 
-  const handleImport = async (file: File) => {
+  const handleFileSelected = async (file: File) => {
+    setStatus(null)
+    try {
+      const data: unknown = JSON.parse(await file.text())
+      setPending({ fileName: file.name, data })
+    } catch {
+      setStatus({ kind: 'error', text: 'Не удалось прочитать файл.' })
+    }
+  }
+
+  const runMerge = async () => {
+    if (!pending) return
+    try {
+      const report = await mergeBackup(pending.data)
+      setStatus({
+        kind: 'ok',
+        text: 'Объединение завершено.',
+        details: formatMergeReport(report),
+      })
+    } catch (e) {
+      setStatus({
+        kind: 'error',
+        text: e instanceof Error ? e.message : 'Не удалось импортировать файл.',
+      })
+    } finally {
+      setPending(null)
+    }
+  }
+
+  const runReplace = async () => {
+    if (!pending) return
     const confirmed = window.confirm(
       'Импорт заменит ВСЕ текущие данные (библиотеку, дневник, шаблоны). Продолжить?',
     )
     if (!confirmed) return
     try {
-      const data: unknown = JSON.parse(await file.text())
-      await importBackup(data)
+      await importBackup(pending.data)
       setStatus({ kind: 'ok', text: 'Данные восстановлены из резервной копии.' })
     } catch (e) {
       setStatus({
         kind: 'error',
         text: e instanceof Error ? e.message : 'Не удалось импортировать файл.',
       })
+    } finally {
+      setPending(null)
     }
   }
 
@@ -82,33 +139,67 @@ export function BackupDialog({ onClose }: Props) {
         </header>
 
         <p className={styles.hint}>
-          Данные живут только на этом устройстве. Safari может удалить их, если приложение долго не
-          открывать, — время от времени сохраняйте копию в файл.
+          Данные живут только на этом устройстве. Сохраняйте копию в файл — это и защита от очистки
+          Safari, и перенос на другое устройство: сохраните файл в iCloud Drive («Файлы»), а там
+          откройте импорт и выберите «Объединить».
         </p>
 
-        <div className={styles.actions}>
-          <button type="button" className={styles.primary} onClick={() => void handleExport()}>
-            Экспорт в файл
-          </button>
-          <button type="button" onClick={() => fileInput.current?.click()}>
-            Импорт из файла
-          </button>
-          <input
-            ref={fileInput}
-            type="file"
-            accept="application/json,.json"
-            className={styles.fileInput}
-            aria-label="Файл резервной копии"
-            onChange={(e) => {
-              const file = e.target.files?.[0]
-              if (file) void handleImport(file)
-              e.target.value = ''
-            }}
-          />
-        </div>
+        {pending ? (
+          <div className={styles.modeChooser} role="group" aria-label="Режим импорта">
+            <p className={styles.modeTitle}>
+              Файл «{pending.fileName}». Как импортировать?
+            </p>
+            <button type="button" className={styles.primary} onClick={() => void runMerge()}>
+              Объединить
+            </button>
+            <p className={styles.modeHint}>
+              Перенос с другого устройства: локальные записи сохраняются, данные из файла
+              добавляются к ним.
+            </p>
+            <button type="button" className={styles.dangerButton} onClick={() => void runReplace()}>
+              Заменить всё
+            </button>
+            <p className={styles.modeHint}>
+              Восстановление из бэкапа: все текущие данные будут заменены содержимым файла.
+            </p>
+            <button type="button" onClick={() => setPending(null)}>
+              Отмена
+            </button>
+          </div>
+        ) : (
+          <div className={styles.actions}>
+            <button type="button" className={styles.primary} onClick={() => void handleExport()}>
+              Экспорт в файл
+            </button>
+            <button type="button" onClick={() => fileInput.current?.click()}>
+              Импорт из файла
+            </button>
+            <input
+              ref={fileInput}
+              type="file"
+              accept="application/json,.json"
+              className={styles.fileInput}
+              aria-label="Файл резервной копии"
+              onChange={(e) => {
+                const file = e.target.files?.[0]
+                if (file) void handleFileSelected(file)
+                e.target.value = ''
+              }}
+            />
+          </div>
+        )}
 
         {status && (
-          <p className={status.kind === 'ok' ? styles.ok : styles.error}>{status.text}</p>
+          <div className={status.kind === 'ok' ? styles.ok : styles.error}>
+            <p className={styles.statusText}>{status.text}</p>
+            {status.details && (
+              <ul className={styles.details}>
+                {status.details.map((line) => (
+                  <li key={line}>{line}</li>
+                ))}
+              </ul>
+            )}
+          </div>
         )}
       </div>
     </div>
